@@ -11,13 +11,13 @@ def signup_view(request):
         return redirect("dashboard:index")
 
     if request.method == "POST":
-        form = StaffRegistrationForm(request.POST)
+        form = StaffRegistrationForm(request.POST, user=request.user)
         if form.is_valid():
             user = form.save()
             messages.success(request, f"Staff account created for {user.get_full_name() or user.username} ({user.get_role_display()}).")
             return redirect("dashboard:index")
     else:
-        form = StaffRegistrationForm()
+        form = StaffRegistrationForm(user=request.user)
 
     return render(request, "accounts/signup.html", {"form": form})
 

@@ -21,6 +21,14 @@ class StaffRegistrationForm(UserCreationForm):
             "password2",
         ]
 
+    def __init__(self, *args, user=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if user and not user.is_superuser:
+            self.fields["role"].choices = [
+                choice for choice in CustomUser.Role.choices
+                if choice[0] != CustomUser.Role.MANAGER
+            ]
+
 
 class StaffProfileForm(forms.ModelForm):
     class Meta:
