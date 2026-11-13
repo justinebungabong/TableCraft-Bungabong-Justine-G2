@@ -1,34 +1,107 @@
 {% extends "base.html" %}
-{% block title %}Sign In — TableCraft{% endblock %}
+{% block title %}Sign in | TableCraft{% endblock %}
 
-{% block content %}
-<div class="row justify-content-center">
-  <div class="col-12 col-sm-10 col-md-6 col-lg-5">
-    <div class="tc-card p-4 p-md-5">
-      <h1 class="h3 fw-bold mb-1">Staff Sign In</h1>
-      <p class="mb-4" style="color: var(--tc-muted);">Access the counter terminal, kitchen queue, or manager dashboard.</p>
+{% block extra_css %}
+<style>
+  .tc-login-grid {
+    display: grid;
+    grid-template-columns: 40% 60%;
+    min-height: 100vh;
+  }
+
+  .tc-login-aside {
+    background-color: var(--rail);
+    color: var(--rail-text);
+    padding: 3rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    border-right: 1px solid var(--rail-rule);
+  }
+
+  .tc-login-brand {
+    font-family: "Bricolage Grotesque", sans-serif;
+    font-size: 1.375rem;
+    font-weight: 700;
+    color: var(--rail-text);
+    margin-bottom: 1.5rem;
+  }
+
+  .tc-login-headline {
+    font-family: "Bricolage Grotesque", sans-serif;
+    font-size: 2.25rem;
+    font-weight: 700;
+    line-height: 1.15;
+    color: var(--rail-text);
+    max-width: 14ch;
+    margin: 0;
+  }
+
+  .tc-login-main {
+    background-color: var(--sheet);
+    padding: 3rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .tc-login-form-wrap {
+    width: 100%;
+    max-width: 380px;
+  }
+
+  @media (max-width: 767.98px) {
+    .tc-login-grid {
+      grid-template-columns: 1fr;
+    }
+    .tc-login-aside {
+      padding: 1.75rem;
+    }
+    .tc-login-headline {
+      font-size: 1.625rem;
+      max-width: none;
+    }
+    .tc-login-main {
+      padding: 2rem 1.5rem;
+      align-items: flex-start;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block unauthenticated_content %}
+<div class="tc-login-grid">
+  <section class="tc-login-aside">
+    <div class="tc-login-brand">TableCraft</div>
+    <h1 class="tc-login-headline">Counter to kitchen, in sync.</h1>
+  </section>
+
+  <main class="tc-login-main">
+    <div class="tc-login-form-wrap">
+      <h2 class="tc-page-title mb-1">Sign in</h2>
+      <p class="mb-4" style="color: var(--muted);">Enter your staff credentials.</p>
 
       {% if form.errors %}
-        <div class="alert alert-danger" role="alert">
-          Invalid username or password. Check your credentials and try again.
+        <div class="tc-alert tc-alert-danger mb-4" role="alert">
+          Username or password did not match an active account.
         </div>
       {% endif %}
 
       <form method="post" novalidate>
         {% csrf_token %}
         <div class="mb-3">
-          <label for="id_username" class="form-label fw-semibold">Username</label>
+          <label for="id_username" class="form-label">Username</label>
           <input type="text" name="username" id="id_username" class="form-control" autocomplete="username" required autofocus>
         </div>
 
         <div class="mb-4">
-          <label for="id_password" class="form-label fw-semibold">Password</label>
+          <label for="id_password" class="form-label">Password</label>
           <input type="password" name="password" id="id_password" class="form-control" autocomplete="current-password" required>
         </div>
 
-        <button type="submit" class="btn btn-tc-primary w-100">Sign In to Station</button>
+        <button type="submit" class="btn-accent w-100">Sign in</button>
       </form>
     </div>
-  </div>
+  </main>
 </div>
 {% endblock %}

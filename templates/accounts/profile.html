@@ -1,69 +1,69 @@
 {% extends "base.html" %}
-{% block title %}Staff Profile — TableCraft{% endblock %}
+{% block title %}My profile | TableCraft{% endblock %}
 
 {% block content %}
-<div class="row justify-content-center">
-  <div class="col-12 col-lg-8">
-    <div class="tc-card p-4 p-md-5">
-      <div class="d-flex flex-column flex-sm-row align-items-sm-center justify-content-between gap-3 pb-4 mb-4 border-bottom">
-        <div class="d-flex align-items-center gap-3">
-          {% if user.profile_photo %}
-            <img src="{{ user.profile_photo.url }}" alt="{{ user.username }} photo" class="rounded-circle object-fit-cover border" width="64" height="64">
-          {% else %}
-            <div class="rounded-circle d-flex align-items-center justify-content-center fw-bold border" style="width: 64px; height: 64px; background-color: #EFF6FF; color: var(--tc-accent); font-size: 1.25rem;">
-              {{ user.username|slice:":2"|upper }}
-            </div>
-          {% endif %}
-          <div>
-            <h1 class="h4 fw-bold mb-1">{{ user.get_full_name|default:user.username }}</h1>
-            <div class="d-flex align-items-center gap-2">
-              <span class="tc-mono small" style="color: var(--tc-muted);">@{{ user.username }}</span>
-              <span class="tc-role-badge">{{ user.display_role }}</span>
-            </div>
-          </div>
+<div class="tc-header-bar">
+  <div class="d-flex align-items-center gap-3">
+    {% if user.profile_photo %}
+      <img src="{{ user.profile_photo.url }}" alt="{{ user.username }}" class="tc-avatar">
+    {% else %}
+      <div class="tc-avatar-fallback">
+        {{ user.username|slice:":2"|upper }}
+      </div>
+    {% endif %}
+    <div class="d-flex align-items-center gap-2">
+      <h1 class="tc-page-title">{{ user.get_full_name|default:user.username }}</h1>
+      <span class="tc-role-tag">{{ user.display_role }}</span>
+    </div>
+  </div>
+</div>
+
+<div class="tc-split-pane">
+  <div class="tc-split-main">
+    <form method="post" enctype="multipart/form-data" novalidate>
+      {% csrf_token %}
+
+      <div class="row g-3 mb-3">
+        <div class="col-sm-6">
+          <label for="id_first_name" class="form-label">First name</label>
+          <input type="text" name="first_name" id="id_first_name" value="{{ form.first_name.value|default_if_none:'' }}" class="form-control {% if form.first_name.errors %}is-invalid{% endif %}">
+          {% for error in form.first_name.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+        </div>
+        <div class="col-sm-6">
+          <label for="id_last_name" class="form-label">Last name</label>
+          <input type="text" name="last_name" id="id_last_name" value="{{ form.last_name.value|default_if_none:'' }}" class="form-control {% if form.last_name.errors %}is-invalid{% endif %}">
+          {% for error in form.last_name.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
         </div>
       </div>
 
-      <form method="post" enctype="multipart/form-data" novalidate>
-        {% csrf_token %}
-
-        <div class="row g-3 mb-3">
-          <div class="col-sm-6">
-            <label for="id_first_name" class="form-label fw-semibold">First Name</label>
-            <input type="text" name="first_name" id="id_first_name" value="{{ form.first_name.value|default_if_none:'' }}" class="form-control {% if form.first_name.errors %}is-invalid{% endif %}">
-            {% for error in form.first_name.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
-          </div>
-          <div class="col-sm-6">
-            <label for="id_last_name" class="form-label fw-semibold">Last Name</label>
-            <input type="text" name="last_name" id="id_last_name" value="{{ form.last_name.value|default_if_none:'' }}" class="form-control {% if form.last_name.errors %}is-invalid{% endif %}">
-            {% for error in form.last_name.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
-          </div>
+      <div class="row g-3 mb-3">
+        <div class="col-sm-6">
+          <label for="id_email" class="form-label">Work email</label>
+          <input type="email" name="email" id="id_email" value="{{ form.email.value|default_if_none:'' }}" class="form-control {% if form.email.errors %}is-invalid{% endif %}" required>
+          {% for error in form.email.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
         </div>
-
-        <div class="row g-3 mb-3">
-          <div class="col-sm-6">
-            <label for="id_email" class="form-label fw-semibold">Work Email</label>
-            <input type="email" name="email" id="id_email" value="{{ form.email.value|default_if_none:'' }}" class="form-control {% if form.email.errors %}is-invalid{% endif %}" required>
-            {% for error in form.email.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
-          </div>
-          <div class="col-sm-6">
-            <label for="id_contact_number" class="form-label fw-semibold">Contact Number</label>
-            <input type="text" name="contact_number" id="id_contact_number" value="{{ form.contact_number.value|default_if_none:'' }}" class="form-control {% if form.contact_number.errors %}is-invalid{% endif %}">
-            {% for error in form.contact_number.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
-          </div>
+        <div class="col-sm-6">
+          <label for="id_contact_number" class="form-label">Contact number</label>
+          <input type="text" name="contact_number" id="id_contact_number" value="{{ form.contact_number.value|default_if_none:'' }}" class="form-control {% if form.contact_number.errors %}is-invalid{% endif %}">
+          {% for error in form.contact_number.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
         </div>
+      </div>
 
-        <div class="mb-4">
-          <label for="id_profile_photo" class="form-label fw-semibold">Profile Photo</label>
-          <input type="file" name="profile_photo" id="id_profile_photo" accept="image/*" class="form-control {% if form.profile_photo.errors %}is-invalid{% endif %}">
-          {% for error in form.profile_photo.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
-        </div>
+      <div class="mb-4">
+        <label for="id_profile_photo" class="form-label">Profile photo</label>
+        <input type="file" name="profile_photo" id="id_profile_photo" accept="image/*" class="form-control {% if form.profile_photo.errors %}is-invalid{% endif %}">
+        {% for error in form.profile_photo.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+      </div>
 
-        <div class="d-flex justify-content-end">
-          <button type="submit" class="btn btn-tc-primary">Save Profile Changes</button>
-        </div>
-      </form>
-    </div>
+      <button type="submit" class="btn-accent">Save changes</button>
+    </form>
   </div>
+
+  <aside class="tc-split-aside">
+    <h2 class="h6 fw-bold mb-2">Station identity</h2>
+    <p class="small mb-0" style="color: var(--muted); max-width: 42ch;">
+      Your display name and role appear on the station rail and audit logs for orders and kitchen tickets you handle.
+    </p>
+  </aside>
 </div>
 {% endblock %}

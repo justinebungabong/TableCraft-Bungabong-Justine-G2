@@ -1,119 +1,101 @@
 {% extends "base.html" %}
-{% block title %}Station Dashboard — TableCraft{% endblock %}
+{% block title %}Operations | TableCraft{% endblock %}
 
 {% block content %}
-<div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
-  <div>
-    <div class="d-flex align-items-center gap-2 mb-1">
-      <h1 class="h3 fw-bold mb-0">Operations Dashboard</h1>
-      <span class="tc-role-badge">{{ user.display_role }}</span>
+<div class="tc-header-bar">
+  <div class="d-flex flex-wrap align-items-center gap-3">
+    <div class="d-flex align-items-center gap-2">
+      <h1 class="tc-page-title">Operations</h1>
+      <span class="tc-role-tag">{{ user.display_role }}</span>
     </div>
-    <p class="mb-0" style="color: var(--tc-muted);">
-      Signed in as <strong>{{ user.get_full_name|default:user.username }}</strong>
-    </p>
+
+    <div class="tc-summary-bar" aria-label="Shift staffing summary">
+      <div class="tc-summary-cell">
+        <span>Team</span>
+        <span class="tc-summary-value">{{ total_staff }}</span>
+      </div>
+      <div class="tc-summary-cell">
+        <span>Managers</span>
+        <span class="tc-summary-value">{{ manager_count }}</span>
+      </div>
+      <div class="tc-summary-cell">
+        <span>Cashiers</span>
+        <span class="tc-summary-value">{{ cashier_count }}</span>
+      </div>
+      <div class="tc-summary-cell">
+        <span>Kitchen</span>
+        <span class="tc-summary-value">{{ kitchen_count }}</span>
+      </div>
+    </div>
   </div>
 
-  <div class="d-flex flex-wrap gap-2">
-    <a href="{% url 'accounts:profile' %}" class="btn btn-tc-outline">Edit Staff Profile</a>
-    {% if user.is_manager %}
-      <a href="{% url 'accounts:signup' %}" class="btn btn-tc-primary">+ Register New Staff</a>
-    {% endif %}
-  </div>
-</div>
-
-<!-- KPI Strip -->
-<div class="row g-3 mb-4">
-  <div class="col-6 col-lg-3">
-    <div class="tc-card p-3 p-md-4 h-100">
-      <div class="small fw-semibold text-uppercase mb-1" style="color: var(--tc-muted); letter-spacing: 0.04em;">Active Team</div>
-      <div class="h2 fw-bold tc-mono mb-0">{{ total_staff }}</div>
+  {% if user.is_manager %}
+    <div>
+      <a href="{% url 'accounts:signup' %}" class="btn-accent">Add staff member</a>
     </div>
-  </div>
-  <div class="col-6 col-lg-3">
-    <div class="tc-card p-3 p-md-4 h-100">
-      <div class="small fw-semibold text-uppercase mb-1" style="color: var(--tc-muted); letter-spacing: 0.04em;">Managers</div>
-      <div class="h2 fw-bold tc-mono mb-0" style="color: var(--tc-accent);">{{ manager_count }}</div>
-    </div>
-  </div>
-  <div class="col-6 col-lg-3">
-    <div class="tc-card p-3 p-md-4 h-100">
-      <div class="small fw-semibold text-uppercase mb-1" style="color: var(--tc-muted); letter-spacing: 0.04em;">Cashiers</div>
-      <div class="h2 fw-bold tc-mono mb-0" style="color: var(--tc-ready);">{{ cashier_count }}</div>
-    </div>
-  </div>
-  <div class="col-6 col-lg-3">
-    <div class="tc-card p-3 p-md-4 h-100">
-      <div class="small fw-semibold text-uppercase mb-1" style="color: var(--tc-muted); letter-spacing: 0.04em;">Kitchen Staff</div>
-      <div class="h2 fw-bold tc-mono mb-0" style="color: var(--tc-pending);">{{ kitchen_count }}</div>
-    </div>
-  </div>
+  {% endif %}
 </div>
 
 {% if user.is_manager %}
-  <!-- Manager Staff Roster -->
-  <div class="tc-card overflow-hidden">
-    <div class="p-3 p-md-4 border-bottom d-flex justify-content-between align-items-center">
-      <div>
-        <h2 class="h5 fw-bold mb-0">Staff Roster &amp; Role Assignments</h2>
-        <p class="small mb-0" style="color: var(--tc-muted);">Custom staff administration synced with Supabase</p>
-      </div>
-    </div>
-
-    <div class="table-responsive">
-      <table class="table align-middle mb-0">
-        <thead style="background-color: var(--tc-surface); border-bottom: 1px solid var(--tc-border);">
+  <div class="table-responsive">
+    <table class="table tc-table align-middle mb-0">
+      <thead>
+        <tr>
+          <th class="ps-4 py-3">Staff member</th>
+          <th class="py-3">Username</th>
+          <th class="py-3">Role</th>
+          <th class="py-3">Contact</th>
+          <th class="py-3">Status</th>
+          <th class="pe-4 py-3 text-end">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for member in staff_members %}
           <tr>
-            <th class="ps-4 py-3 small text-uppercase fw-semibold" style="color: var(--tc-muted);">Staff Member</th>
-            <th class="py-3 small text-uppercase fw-semibold" style="color: var(--tc-muted);">Username</th>
-            <th class="py-3 small text-uppercase fw-semibold" style="color: var(--tc-muted);">Role</th>
-            <th class="py-3 small text-uppercase fw-semibold" style="color: var(--tc-muted);">Contact</th>
-            <th class="py-3 small text-uppercase fw-semibold" style="color: var(--tc-muted);">Status</th>
-            <th class="pe-4 py-3 text-end small text-uppercase fw-semibold" style="color: var(--tc-muted);">Actions</th>
+            <td class="ps-4 py-3 fw-medium">{{ member.get_full_name|default:member.username }}</td>
+            <td class="py-3" style="color: var(--muted);">{{ member.username }}</td>
+            <td class="py-3"><span class="tc-role-tag">{{ member.display_role }}</span></td>
+            <td class="py-3">{{ member.contact_number|default:"—" }}</td>
+            <td class="py-3">
+              {% if member.is_active %}
+                <span class="tc-status tc-status-ok"><span class="tc-status-dot"></span>Active</span>
+              {% else %}
+                <span class="tc-status tc-status-off"><span class="tc-status-dot"></span>Inactive</span>
+              {% endif %}
+            </td>
+            <td class="pe-4 py-3 text-end">
+              {% if user.is_superuser or not member.is_superuser and member.role != "MANAGER" %}
+                <div class="d-inline-flex align-items-center gap-1">
+                  <a href="{% url 'accounts:staff_edit' member.pk %}" class="tc-row-action">Edit</a>
+                  {% if member != user %}
+                    <form method="post" action="{% url 'accounts:staff_toggle_active' member.pk %}" class="d-inline">
+                      {% csrf_token %}
+                      <button type="submit" class="tc-row-action tc-row-action-muted">
+                        {% if member.is_active %}Deactivate{% else %}Activate{% endif %}
+                      </button>
+                    </form>
+                  {% endif %}
+                </div>
+              {% else %}
+                <span class="small" style="color: var(--muted);">Owner managed</span>
+              {% endif %}
+            </td>
           </tr>
-        </thead>
-        <tbody>
-          {% for member in staff_members %}
-            <tr>
-              <td class="ps-4 py-3 fw-semibold">{{ member.get_full_name|default:member.username }}</td>
-              <td class="py-3 tc-mono" style="color: var(--tc-muted);">@{{ member.username }}</td>
-              <td class="py-3"><span class="tc-role-badge">{{ member.display_role }}</span></td>
-              <td class="py-3 tc-mono">{{ member.contact_number|default:"—" }}</td>
-              <td class="py-3">
-                {% if member.is_active %}
-                  <span class="badge rounded-pill" style="background-color: #DCFCE7; color: var(--tc-ready);">Active</span>
-                {% else %}
-                  <span class="badge rounded-pill" style="background-color: #FEE2E2; color: var(--tc-danger);">Inactive</span>
-                {% endif %}
-              </td>
-              <td class="pe-4 py-3 text-end">
-                {% if user.is_superuser or not member.is_superuser and member.role != "MANAGER" %}
-                  <div class="d-inline-flex gap-2">
-                    <a href="{% url 'accounts:staff_edit' member.pk %}" class="btn btn-tc-outline btn-sm py-1 px-2" style="min-height: 32px;">Edit</a>
-                    {% if member != user %}
-                      <form method="post" action="{% url 'accounts:staff_toggle_active' member.pk %}" class="d-inline">
-                        {% csrf_token %}
-                        <button type="submit" class="btn btn-tc-outline btn-sm py-1 px-2" style="min-height: 32px;">
-                          {% if member.is_active %}Deactivate{% else %}Activate{% endif %}
-                        </button>
-                      </form>
-                    {% endif %}
-                  </div>
-                {% else %}
-                  <span class="small" style="color: var(--tc-muted);">Protected</span>
-                {% endif %}
-              </td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
+        {% empty %}
+          <tr>
+            <td colspan="6" class="p-4 text-center" style="color: var(--muted);">
+              No staff accounts found. Select <strong>Add staff member</strong> to onboard your team.
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
   </div>
 {% else %}
-  <!-- Cashier / Kitchen Station Card -->
-  <div class="tc-card p-4 p-md-5">
-    <h2 class="h5 fw-bold mb-2">Station Ready</h2>
-    <p class="mb-0" style="color: var(--tc-muted);">
-      Your account is configured for the <strong>{{ user.get_role_display }}</strong> station. Counter POS and Kitchen Ticket Queue modules will appear here next.
+  <div class="tc-body-pane">
+    <h2 class="h5 fw-bold mb-2">Station ready</h2>
+    <p class="mb-0" style="color: var(--muted); max-width: 60ch;">
+      Signed in for the {{ user.display_role }} station. Counter POS and Kitchen Ticket Queue workspaces will appear in the left rail next.
     </p>
   </div>
 {% endif %}

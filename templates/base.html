@@ -1,188 +1,571 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>{% block title %}TableCraft{% endblock %}</title>
-    <link
-      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
-      rel="stylesheet"
-    />
-    <style>
-      :root {
-        --tc-surface: #f7f7f5;
-        --tc-card: #ffffff;
-        --tc-ink: #111827;
-        --tc-muted: #4b5563;
-        --tc-border: #e5e7eb;
-        --tc-accent: #1d4ed8;
-        --tc-accent-hover: #1e40af;
-        --tc-pending: #b45309;
-        --tc-preparing: #6d28d9;
-        --tc-ready: #15803d;
-        --tc-danger: #b91c1c;
-      }
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}TableCraft{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    :root {
+      /* Surfaces */
+      --rail: #191513;
+      --rail-hover: #26201D;
+      --rail-active: #C24D16;
+      --rail-rule: #2E2723;
+      --rail-text: #F6F3EF;
+      --rail-muted: #A39891;
+      --canvas: #F2EFE9;
+      --sheet: #FCFBF9;
+      --surface-raised: #FFFFFF;
 
-      body {
-        background-color: var(--tc-surface);
-        color: var(--tc-ink);
-        font-family:
-          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-        font-size: 1rem;
-        line-height: 1.5;
-      }
+      /* Ink & Borders */
+      --ink: #191513;
+      --muted: #5E554F;
+      --rule: #E0D9D0;
 
-      .tc-navbar {
-        background-color: var(--tc-card);
-        border-bottom: 1px solid var(--tc-border);
-        min-height: 64px;
-      }
+      /* Semantic Accents */
+      --accent: #C24D16;
+      --accent-hover: #A33E0F;
+      --accent-soft: #F8E8DF;
+      --accent-border: #EAC4B0;
+      --status-ok: #1E5631;
+      --status-warn: #B45309;
+      --danger: #9E2A2B;
+      --danger-soft: #FDF2F2;
+      --danger-border: #E8C2C2;
 
-      .tc-brand {
-        font-weight: 700;
-        font-size: 1.25rem;
-        letter-spacing: -0.02em;
-        color: var(--tc-ink);
-        text-decoration: none;
-      }
+      /* Focus & Radii */
+      --focus-ring: 0 0 0 3px rgba(194, 77, 22, 0.22);
+      --radius-sm: 4px;
+      --radius-md: 6px;
+    }
 
-      .tc-card {
-        background-color: var(--tc-card);
-        border: 1px solid var(--tc-border);
-        border-radius: 12px;
-        box-shadow: 0 1px 3px rgba(17, 24, 39, 0.05);
-      }
+    *, *::before, *::after {
+      box-sizing: border-box;
+    }
 
-      .tc-mono {
-        font-variant-numeric: tabular-nums;
-        font-family:
-          ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-      }
+    html, body {
+      height: 100%;
+      margin: 0;
+      background-color: var(--canvas);
+      color: var(--ink);
+      font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+      font-size: 0.9375rem;
+      line-height: 1.5;
+      font-variant-numeric: tabular-nums;
+    }
 
-      .btn-tc-primary {
-        background-color: var(--tc-accent);
-        border-color: var(--tc-accent);
-        color: #ffffff;
-        font-weight: 600;
-        min-height: 44px;
-        padding: 0.625rem 1.25rem;
-        border-radius: 8px;
-      }
+    h1, h2, h3, h4, .tc-display {
+      font-family: "Bricolage Grotesque", sans-serif;
+      letter-spacing: -0.02em;
+      color: var(--ink);
+    }
 
-      .btn-tc-primary:hover,
-      .btn-tc-primary:focus {
-        background-color: var(--tc-accent-hover);
-        border-color: var(--tc-accent-hover);
-        color: #ffffff;
-      }
+    .tc-page-title {
+      font-size: 1.5rem;
+      font-weight: 700;
+      line-height: 1.25;
+      margin: 0;
+    }
 
-      .btn-tc-outline {
-        background-color: var(--tc-card);
-        border: 1px solid var(--tc-border);
-        color: var(--tc-ink);
-        font-weight: 500;
-        min-height: 44px;
-        padding: 0.625rem 1rem;
-        border-radius: 8px;
-      }
+    /* Workstation Shell */
+    .tc-shell {
+      display: grid;
+      grid-template-columns: 232px 1fr;
+      min-height: 100vh;
+    }
 
-      .btn-tc-outline:hover {
-        background-color: #f3f4f6;
-        color: var(--tc-ink);
-      }
+    .tc-rail {
+      background-color: var(--rail);
+      color: var(--rail-text);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      border-right: 1px solid var(--rail-rule);
+      position: sticky;
+      top: 0;
+      height: 100vh;
+    }
 
-      .form-control,
-      .form-select {
-        min-height: 44px;
-        border-color: #d1d5db;
-        border-radius: 8px;
-        color: var(--tc-ink);
-      }
+    .tc-rail-brand {
+      display: flex;
+      align-items: center;
+      min-height: 72px;
+      padding: 0 1.25rem;
+      border-bottom: 1px solid var(--rail-rule);
+      font-family: "Bricolage Grotesque", sans-serif;
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--rail-text);
+      text-decoration: none;
+    }
 
-      .form-control:focus,
-      .form-select:focus {
-        border-color: var(--tc-accent);
-        box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.2);
-      }
+    .tc-rail-nav {
+      padding: 0.75rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
 
-      .tc-role-badge {
-        display: inline-flex;
-        align-items: center;
-        padding: 0.25rem 0.65rem;
-        border-radius: 999px;
-        font-size: 0.8125rem;
-        font-weight: 600;
-        background-color: #eff6ff;
-        color: var(--tc-accent);
-        border: 1px solid #bfdbfe;
-      }
-    </style>
-  </head>
-  <body>
-    <nav class="navbar navbar-expand-md tc-navbar sticky-top">
-      <div class="container">
-        <a class="tc-brand" href="{% url 'home' %}">TableCraft</a>
-        <button
-          class="navbar-toggler"
-          type="button"
-          data-bs-toggle="collapse"
-          data-bs-target="#tcNav"
-          aria-label="Toggle navigation"
-        >
-          <span class="navbar-toggler-icon"></span>
-        </button>
+    .tc-rail-link {
+      display: flex;
+      align-items: center;
+      gap: 0.625rem;
+      min-height: 44px;
+      padding: 0.5rem 0.75rem;
+      border-radius: var(--radius-md);
+      color: var(--rail-muted);
+      font-weight: 500;
+      text-decoration: none;
+      transition: background-color 120ms ease, color 120ms ease;
+    }
 
-        <div class="collapse navbar-collapse" id="tcNav">
-          <ul
-            class="navbar-nav ms-auto align-items-md-center gap-md-2 mt-2 mt-md-0"
-          >
-            {% if user.is_authenticated %}
-            <li class="nav-item">
-              <a class="nav-link fw-medium text-dark" href="{% url 'dashboard:index' %}">Dashboard</a>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link fw-medium text-dark" href="{% url 'accounts:profile' %}">Profile</a>
-            </li>
-            <li class="nav-item">
-              <form method="post" action="{% url 'accounts:logout' %}" class="d-inline">
-                {% csrf_token %}
-                <button type="submit" class="btn btn-tc-outline btn-sm">Sign Out</button>
-              </form>
-            </li>
-          {% else %}
-            <li class="nav-item">
-              <a
-                class="nav-link fw-medium text-dark"
-                href="{% url 'accounts:login' %}"
-                >Sign In</a
-              >
-            {% endif %}
-          </ul>
+    .tc-rail-link:hover, .tc-rail-link:focus-visible {
+      background-color: var(--rail-hover);
+      color: var(--rail-text);
+      outline: none;
+    }
+
+    .tc-rail-link:focus-visible {
+      box-shadow: var(--focus-ring);
+    }
+
+    .tc-rail-link.is-active {
+      background-color: var(--rail-active);
+      color: var(--rail-text);
+    }
+
+    .tc-rail-footer {
+      padding: 1rem 1.25rem;
+      border-top: 1px solid var(--rail-rule);
+    }
+
+    .tc-rail-user {
+      color: var(--rail-text);
+      font-weight: 500;
+    }
+
+    .tc-rail-role {
+      color: var(--rail-muted);
+      font-size: 0.8125rem;
+    }
+
+    .btn-rail-signout {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      width: 100%;
+      min-height: 38px;
+      padding: 0.375rem 0.75rem;
+      background-color: var(--rail-hover);
+      border: 1px solid var(--rail-rule);
+      border-radius: var(--radius-md);
+      color: var(--rail-text);
+      font-size: 0.875rem;
+      font-weight: 500;
+      transition: background-color 120ms ease, border-color 120ms ease;
+    }
+
+    .btn-rail-signout:hover, .btn-rail-signout:focus-visible {
+      background-color: var(--rail-rule);
+      color: var(--rail-text);
+      outline: none;
+    }
+
+    .btn-rail-signout:focus-visible {
+      box-shadow: var(--focus-ring);
+    }
+
+    /* Workspace Panes */
+    .tc-workspace {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      background-color: var(--sheet);
+    }
+
+    .tc-header-bar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      min-height: 72px;
+      padding: 1rem 2rem;
+      border-bottom: 1px solid var(--rule);
+      background-color: var(--sheet);
+    }
+
+    .tc-body-pane {
+      padding: 2rem;
+      flex: 1;
+    }
+
+    /* Split Form Layout */
+    .tc-split-pane {
+      display: grid;
+      grid-template-columns: minmax(0, 560px) 1fr;
+      flex: 1;
+    }
+
+    .tc-split-main {
+      padding: 2rem;
+      border-right: 1px solid var(--rule);
+    }
+
+    .tc-split-aside {
+      padding: 2rem;
+      background-color: var(--canvas);
+    }
+
+    /* Inline Shift Summary Bar */
+    .tc-summary-bar {
+      display: inline-flex;
+      flex-wrap: wrap;
+      align-items: center;
+      min-height: 40px;
+      background-color: var(--canvas);
+      border: 1px solid var(--rule);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+    }
+
+    .tc-summary-cell {
+      display: inline-flex;
+      align-items: baseline;
+      gap: 0.375rem;
+      padding: 0.375rem 0.875rem;
+      font-size: 0.875rem;
+      color: var(--muted);
+    }
+
+    .tc-summary-cell + .tc-summary-cell {
+      border-left: 1px solid var(--rule);
+    }
+
+    .tc-summary-value {
+      font-weight: 600;
+      color: var(--ink);
+    }
+
+    /* Controls & Inputs */
+    .btn-accent {
+      background-color: var(--accent);
+      border: 1px solid var(--accent);
+      color: var(--rail-text);
+      font-weight: 500;
+      min-height: 44px;
+      padding: 0.5rem 1.125rem;
+      border-radius: var(--radius-md);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      text-decoration: none;
+      transition: background-color 120ms ease, border-color 120ms ease;
+    }
+
+    .btn-accent:hover, .btn-accent:focus-visible {
+      background-color: var(--accent-hover);
+      border-color: var(--accent-hover);
+      color: var(--rail-text);
+      outline: none;
+    }
+
+    .btn-accent:focus-visible {
+      box-shadow: var(--focus-ring);
+    }
+
+    .btn-sheet {
+      background-color: var(--surface-raised);
+      border: 1px solid var(--rule);
+      color: var(--ink);
+      font-weight: 500;
+      min-height: 44px;
+      padding: 0.5rem 1rem;
+      border-radius: var(--radius-md);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      text-decoration: none;
+      transition: background-color 120ms ease, border-color 120ms ease;
+    }
+
+    .btn-sheet:hover, .btn-sheet:focus-visible {
+      background-color: var(--canvas);
+      color: var(--ink);
+      outline: none;
+    }
+
+    .btn-sheet:focus-visible {
+      box-shadow: var(--focus-ring);
+    }
+
+    .form-label {
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: var(--ink);
+      margin-bottom: 0.375rem;
+    }
+
+    .form-control, .form-select {
+      background-color: var(--surface-raised);
+      border: 1px solid var(--rule);
+      border-radius: var(--radius-md);
+      color: var(--ink);
+      min-height: 44px;
+      transition: border-color 120ms ease, box-shadow 120ms ease;
+    }
+
+    .form-control:focus, .form-select:focus {
+      border-color: var(--accent);
+      box-shadow: var(--focus-ring);
+    }
+
+    .form-control.is-invalid, .form-select.is-invalid {
+      border-color: var(--danger);
+    }
+
+    .form-control.is-invalid:focus, .form-select.is-invalid:focus {
+      box-shadow: 0 0 0 3px rgba(158, 42, 43, 0.18);
+    }
+
+    .invalid-feedback {
+      color: var(--danger);
+      font-size: 0.8125rem;
+    }
+
+    .tc-alert {
+      border-radius: var(--radius-md);
+      border: 1px solid var(--rule);
+      background-color: var(--canvas);
+      color: var(--ink);
+      padding: 0.75rem 1rem;
+    }
+
+    .tc-alert-danger {
+      border-color: var(--danger-border);
+      background-color: var(--danger-soft);
+      color: var(--danger);
+    }
+
+    /* Tags, Status & Roster Rows */
+    .tc-role-tag {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.15rem 0.55rem;
+      border-radius: var(--radius-sm);
+      font-size: 0.8125rem;
+      font-weight: 500;
+      background-color: var(--accent-soft);
+      color: var(--accent-hover);
+      border: 1px solid var(--accent-border);
+    }
+
+    .tc-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+      font-weight: 500;
+      font-size: 0.875rem;
+    }
+
+    .tc-status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .tc-status-ok {
+      color: var(--status-ok);
+    }
+
+    .tc-status-ok .tc-status-dot {
+      background-color: var(--status-ok);
+    }
+
+    .tc-status-off {
+      color: var(--danger);
+    }
+
+    .tc-status-off .tc-status-dot {
+      background-color: var(--danger);
+    }
+
+    .tc-table thead th {
+      background-color: var(--canvas);
+      border-bottom: 1px solid var(--rule);
+      color: var(--muted);
+      font-weight: 500;
+      font-size: 0.875rem;
+    }
+
+    .tc-table tbody tr {
+      border-bottom: 1px solid var(--rule);
+      transition: background-color 120ms ease;
+    }
+
+    .tc-table tbody tr:hover {
+      background-color: var(--canvas);
+    }
+
+    .tc-row-action {
+      display: inline-flex;
+      align-items: center;
+      min-height: 36px;
+      padding: 0.25rem 0.5rem;
+      background: transparent;
+      border: none;
+      border-radius: var(--radius-sm);
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: var(--ink);
+      text-decoration: none;
+      cursor: pointer;
+      transition: background-color 120ms ease, color 120ms ease;
+    }
+
+    .tc-row-action:hover, .tc-row-action:focus-visible {
+      background-color: var(--rule);
+      color: var(--ink);
+      outline: none;
+    }
+
+    .tc-row-action:focus-visible {
+      box-shadow: var(--focus-ring);
+    }
+
+    .tc-row-action-muted {
+      color: var(--muted);
+    }
+
+    .tc-row-action-muted:hover, .tc-row-action-muted:focus-visible {
+      color: var(--danger);
+    }
+
+    .tc-avatar {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 1px solid var(--rule);
+    }
+
+    .tc-avatar-fallback {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+      background-color: var(--accent-soft);
+      color: var(--accent-hover);
+      border: 1px solid var(--accent-border);
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        transition: none !important;
+      }
+    }
+
+    @media (max-width: 991.98px) {
+      .tc-shell {
+        grid-template-columns: 1fr;
+      }
+      .tc-rail {
+        position: static;
+        height: auto;
+        border-right: none;
+        border-bottom: 1px solid var(--rail-rule);
+      }
+      .tc-rail-nav {
+        flex-direction: row;
+        flex-wrap: wrap;
+      }
+      .tc-header-bar, .tc-body-pane, .tc-split-main, .tc-split-aside {
+        padding: 1.25rem;
+      }
+      .tc-split-pane {
+        grid-template-columns: 1fr;
+      }
+      .tc-split-main {
+        border-right: none;
+        border-bottom: 1px solid var(--rule);
+      }
+    }
+  </style>
+  {% block extra_css %}{% endblock %}
+</head>
+<body>
+  {% if user.is_authenticated %}
+    <div class="tc-shell">
+      <aside class="tc-rail">
+        <div>
+          <a class="tc-rail-brand" href="{% url 'home' %}">TableCraft</a>
+
+          <nav class="tc-rail-nav" aria-label="Station navigation">
+            <a class="tc-rail-link {% if request.resolver_match.app_name == 'dashboard' %}is-active{% endif %}" href="{% url 'dashboard:index' %}">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+                <circle cx="9" cy="7" r="4"/>
+                <path d="M22 21v-2a4 4 0 0 0-3-3.87"/>
+                <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+              </svg>
+              <span>Operations</span>
+            </a>
+
+            <a class="tc-rail-link {% if request.resolver_match.url_name == 'profile' %}is-active{% endif %}" href="{% url 'accounts:profile' %}">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="10"/>
+                <circle cx="12" cy="10" r="3"/>
+                <path d="M7 20.662V19a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v1.662"/>
+              </svg>
+              <span>My profile</span>
+            </a>
+          </nav>
         </div>
-      </div>
-    </nav>
 
-    <main class="container py-4 py-md-5">
-      {% if messages %}
-      <div class="mb-4">
-        {% for message in messages %}
-        <div
-          class="alert alert-{{ message.tags|default:'info' }} alert-dismissible fade show border"
-          role="alert"
-        >
-          {{ message }}
-          <button
-            type="button"
-            class="btn-close"
-            data-bs-dismiss="alert"
-            aria-label="Close"
-          ></button>
+        <div class="tc-rail-footer">
+          <div class="tc-rail-user">{{ user.get_full_name|default:user.username }}</div>
+          <div class="tc-rail-role mb-3">{{ user.display_role }}</div>
+          <form method="post" action="{% url 'accounts:logout' %}">
+            {% csrf_token %}
+            <button type="submit" class="btn-rail-signout">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                <polyline points="16 17 21 12 16 7"/>
+                <line x1="21" y1="12" x2="9" y2="12"/>
+              </svg>
+              <span>Sign out</span>
+            </button>
+          </form>
         </div>
-        {% endfor %}
-      </div>
-      {% endif %} {% block content %}{% endblock %}
-    </main>
+      </aside>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-  </body>
+      <div class="tc-workspace">
+        {% if messages %}
+          <div class="px-4 pt-3">
+            {% for message in messages %}
+              <div class="tc-alert {% if message.tags == 'error' %}tc-alert-danger{% endif %} alert-dismissible fade show mb-2" style="max-width: 72ch;" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+              </div>
+            {% endfor %}
+          </div>
+        {% endif %}
+
+        {% block content %}{% endblock %}
+      </div>
+    </div>
+  {% else %}
+    {% block unauthenticated_content %}{% endblock %}
+  {% endif %}
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
 </html>
