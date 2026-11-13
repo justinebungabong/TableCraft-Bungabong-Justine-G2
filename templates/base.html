@@ -137,40 +137,19 @@
             class="navbar-nav ms-auto align-items-md-center gap-md-2 mt-2 mt-md-0"
           >
             {% if user.is_authenticated %}
-            <a
-              class="nav-link fw-medium text-dark"
-              href="{% url 'dashboard:index' %}"
-              >Dashboard</a
-            >
-            {% if user.is_manager %}
             <li class="nav-item">
-              <a
-                class="nav-link fw-medium text-dark"
-                href="{% url 'admin:index' %}"
-                >Admin Console</a
-              >
-            </li>
-            {% endif %}
-            <li class="nav-item">
-              <a
-                class="nav-link fw-medium text-dark"
-                href="{% url 'accounts:profile' %}"
-                >Profile</a
-              >
+              <a class="nav-link fw-medium text-dark" href="{% url 'dashboard:index' %}">Dashboard</a>
             </li>
             <li class="nav-item">
-              <form
-                method="post"
-                action="{% url 'accounts:logout' %}"
-                class="d-inline"
-              >
+              <a class="nav-link fw-medium text-dark" href="{% url 'accounts:profile' %}">Profile</a>
+            </li>
+            <li class="nav-item">
+              <form method="post" action="{% url 'accounts:logout' %}" class="d-inline">
                 {% csrf_token %}
-                <button type="submit" class="btn btn-tc-outline btn-sm">
-                  Sign Out
-                </button>
+                <button type="submit" class="btn btn-tc-outline btn-sm">Sign Out</button>
               </form>
             </li>
-            {% else %}
+          {% else %}
             <li class="nav-item">
               <a
                 class="nav-link fw-medium text-dark"
