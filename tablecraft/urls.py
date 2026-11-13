@@ -8,6 +8,7 @@ urlpatterns = [
     path("", lambda request: redirect("accounts:profile" if request.user.is_authenticated else "accounts:login"), name="home"),
     path("admin/", admin.site.urls),
     path("accounts/", include("accounts.urls")),
+    path("dashboard/", include("dashboard.urls")),
 ]
 
 if settings.DEBUG:

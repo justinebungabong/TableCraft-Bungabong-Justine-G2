@@ -1,3 +1,17 @@
+from django.contrib.auth.decorators import login_required
 from django.shortcuts import render
+from accounts.models import CustomUser
 
-# Create your views here.
+
+@login_required
+def index_view(request):
+    staff_members = CustomUser.objects.order_by("role", "first_name", "username")
+
+    context = {
+        "staff_members": staff_members,
+        "total_staff": staff_members.count(),
+        "manager_count": staff_members.filter(role=CustomUser.Role.MANAGER).count(),
+        "cashier_count": staff_members.filter(role=CustomUser.Role.CASHIER).count(),
+        "kitchen_count": staff_members.filter(role=CustomUser.Role.KITCHEN).count(),
+    }
+    return render(request, "dashboard/index.html", context)

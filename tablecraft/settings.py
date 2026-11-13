@@ -81,8 +81,9 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # Custom User & Auth Redirects
 AUTH_USER_MODEL = "accounts.CustomUser"
 LOGIN_URL = "accounts:login"
-LOGIN_REDIRECT_URL = "accounts:profile"
+LOGIN_REDIRECT_URL = "dashboard:index"
 LOGOUT_REDIRECT_URL = "accounts:login"
+
 
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"

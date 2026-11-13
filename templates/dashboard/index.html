@@ -1,0 +1,212 @@
+{% extends "base.html" %}
+{% block title %}Station Dashboard — TableCraft{% endblock %}
+
+{% block content %}
+  <div
+    class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4"
+  >
+    <div>
+      <div class="d-flex align-items-center gap-2 mb-1">
+        <h1 class="h3 fw-bold mb-0">Operations Dashboard</h1>
+        <span class="tc-role-badge">{{ user.get_role_display }}</span>
+      </div>
+      <p class="mb-0" style="color: var(--tc-muted)">
+        Signed in as
+        <strong>{{ user.get_full_name|default:user.username }}</strong>
+      </p>
+    </div>
+
+    <div class="d-flex flex-wrap gap-2">
+      <a href="{% url 'accounts:profile' %}" class="btn btn-tc-outline">
+        Edit Staff Profile
+      </a>
+      {% if user.is_manager %}
+        <a
+          href="{% url 'admin:accounts_customuser_changelist' %}"
+          class="btn btn-tc-primary"
+        >
+          Manage Staff Accounts
+        </a>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- KPI Strip -->
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-lg-3">
+      <div class="tc-card p-3 p-md-4 h-100">
+        <div
+          class="small fw-semibold text-uppercase mb-1"
+          style="color: var(--tc-muted); letter-spacing: 0.04em"
+        >
+          Active Team
+        </div>
+        <div class="h2 fw-bold tc-mono mb-0">{{ total_staff }}</div>
+      </div>
+    </div>
+    <div class="col-6 col-lg-3">
+      <div class="tc-card p-3 p-md-4 h-100">
+        <div
+          class="small fw-semibold text-uppercase mb-1"
+          style="color: var(--tc-muted); letter-spacing: 0.04em"
+        >
+          Managers
+        </div>
+        <div
+          class="h2 fw-bold tc-mono mb-0"
+          style="color: var(--tc-accent)"
+        >
+          {{ manager_count }}
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-lg-3">
+      <div class="tc-card p-3 p-md-4 h-100">
+        <div
+          class="small fw-semibold text-uppercase mb-1"
+          style="color: var(--tc-muted); letter-spacing: 0.04em"
+        >
+          Cashiers
+        </div>
+        <div
+          class="h2 fw-bold tc-mono mb-0"
+          style="color: var(--tc-ready)"
+        >
+          {{ cashier_count }}
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-lg-3">
+      <div class="tc-card p-3 p-md-4 h-100">
+        <div
+          class="small fw-semibold text-uppercase mb-1"
+          style="color: var(--tc-muted); letter-spacing: 0.04em"
+        >
+          Kitchen Staff
+        </div>
+        <div
+          class="h2 fw-bold tc-mono mb-0"
+          style="color: var(--tc-pending)"
+        >
+          {{ kitchen_count }}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {% if user.is_manager %}
+    <!-- Manager Staff Roster -->
+    <div class="tc-card overflow-hidden">
+      <div
+        class="p-3 p-md-4 border-bottom d-flex justify-content-between align-items-center"
+      >
+        <div>
+          <h2 class="h5 fw-bold mb-0">Staff Roster &amp; Role Assignments</h2>
+          <p class="small mb-0" style="color: var(--tc-muted)">
+            Live roster synced with Supabase
+          </p>
+        </div>
+        <a href="{% url 'accounts:signup' %}" class="btn btn-tc-outline btn-sm">
+          + Register Staff
+        </a>
+      </div>
+
+      <div class="table-responsive">
+        <table class="table align-middle mb-0">
+          <thead
+            style="
+              background-color: var(--tc-surface);
+              border-bottom: 1px solid var(--tc-border);
+            "
+          >
+            <tr>
+              <th
+                class="ps-4 py-3 small text-uppercase fw-semibold"
+                style="color: var(--tc-muted)"
+              >
+                Staff Member
+              </th>
+              <th
+                class="py-3 small text-uppercase fw-semibold"
+                style="color: var(--tc-muted)"
+              >
+                Username
+              </th>
+              <th
+                class="py-3 small text-uppercase fw-semibold"
+                style="color: var(--tc-muted)"
+              >
+                Role
+              </th>
+              <th
+                class="py-3 small text-uppercase fw-semibold"
+                style="color: var(--tc-muted)"
+              >
+                Contact
+              </th>
+              <th
+                class="pe-4 py-3 text-end small text-uppercase fw-semibold"
+                style="color: var(--tc-muted)"
+              >
+                Status
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for member in staff_members %}
+              <tr>
+                <td class="ps-4 py-3 fw-semibold">
+                  {{ member.get_full_name|default:member.username }}
+                </td>
+                <td class="py-3 tc-mono" style="color: var(--tc-muted)">
+                  @{{ member.username }}
+                </td>
+                <td class="py-3">
+                  <span class="tc-role-badge">
+                    {{ member.get_role_display }}
+                  </span>
+                </td>
+                <td class="py-3 tc-mono">
+                  {{ member.contact_number|default:"—" }}
+                </td>
+                <td class="pe-4 py-3 text-end">
+                  {% if member.is_active %}
+                    <span
+                      class="badge rounded-pill"
+                      style="
+                        background-color: #dcfce7;
+                        color: var(--tc-ready);
+                      "
+                    >
+                      Active
+                    </span>
+                  {% else %}
+                    <span
+                      class="badge rounded-pill"
+                      style="
+                        background-color: #fee2e2;
+                        color: var(--tc-danger);
+                      "
+                    >
+                      Inactive
+                    </span>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  {% else %}
+    <!-- Cashier / Kitchen Station Card -->
+    <div class="tc-card p-4 p-md-5">
+      <h2 class="h5 fw-bold mb-2">Station Ready</h2>
+      <p class="mb-0" style="color: var(--tc-muted)">
+        Your account is configured for the
+        <strong>{{ user.get_role_display }}</strong> station. Counter POS and
+        Kitchen Ticket Queue modules will appear here next.
+      </p>
+    </div>
+  {% endif %}
+{% endblock %}
