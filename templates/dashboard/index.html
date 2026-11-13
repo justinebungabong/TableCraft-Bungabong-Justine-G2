@@ -6,7 +6,7 @@
   <div>
     <div class="d-flex align-items-center gap-2 mb-1">
       <h1 class="h3 fw-bold mb-0">Operations Dashboard</h1>
-      <span class="tc-role-badge">{{ user.get_role_display }}</span>
+      <span class="tc-role-badge">{{ user.display_role }}</span>
     </div>
     <p class="mb-0" style="color: var(--tc-muted);">
       Signed in as <strong>{{ user.get_full_name|default:user.username }}</strong>
@@ -76,7 +76,7 @@
             <tr>
               <td class="ps-4 py-3 fw-semibold">{{ member.get_full_name|default:member.username }}</td>
               <td class="py-3 tc-mono" style="color: var(--tc-muted);">@{{ member.username }}</td>
-              <td class="py-3"><span class="tc-role-badge">{{ member.get_role_display }}</span></td>
+              <td class="py-3"><span class="tc-role-badge">{{ member.display_role }}</span></td>
               <td class="py-3 tc-mono">{{ member.contact_number|default:"—" }}</td>
               <td class="py-3">
                 {% if member.is_active %}

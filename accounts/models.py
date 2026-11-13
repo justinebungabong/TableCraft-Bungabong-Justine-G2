@@ -22,6 +22,12 @@ class CustomUser(AbstractUser):
         return self.role == self.Role.MANAGER
 
     @property
+    def display_role(self):
+        if self.is_superuser:
+            return "Owner"
+        return self.get_role_display()
+
+    @property
     def can_access_cashier(self):
         return self.role in (self.Role.CASHIER, self.Role.MANAGER)
 

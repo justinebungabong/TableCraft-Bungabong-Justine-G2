@@ -18,7 +18,7 @@
             <h1 class="h4 fw-bold mb-1">{{ user.get_full_name|default:user.username }}</h1>
             <div class="d-flex align-items-center gap-2">
               <span class="tc-mono small" style="color: var(--tc-muted);">@{{ user.username }}</span>
-              <span class="tc-role-badge">{{ user.get_role_display }}</span>
+              <span class="tc-role-badge">{{ user.display_role }}</span>
             </div>
           </div>
         </div>
