@@ -50,9 +50,20 @@
               </td>
               <td>
                 {% if t.is_active %}
-                  <a href="{% url 'pos:customer_menu' t.qr_token %}" target="_blank" class="btn btn-sm btn-outline-primary">
-                    Open Table Menu
-                  </a>
+                  <div class="d-flex align-items-center gap-3">
+                    <div class="qr-canvas p-1 bg-white border rounded"
+                         data-url="{{ request.scheme }}://{{ request.get_host }}{% url 'pos:customer_menu' t.qr_token %}">
+                    </div>
+                    <div class="d-flex flex-column gap-1">
+                      <a href="{% url 'pos:customer_menu' t.qr_token %}" target="_blank" class="btn btn-sm btn-outline-primary">
+                        Open Table Menu
+                      </a>
+                      <button type="button" class="btn btn-sm btn-outline-secondary"
+                              onclick="copyTableUrl(this)">
+                        Copy URL
+                      </button>
+                    </div>
+                  </div>
                 {% else %}
                   <span class="text-muted small">Disabled while inactive</span>
                 {% endif %}
@@ -80,4 +91,26 @@
     </div>
   </div>
 </div>
+
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+<script>
+  document.querySelectorAll(".qr-canvas").forEach((box) => {
+    new QRCode(box, {
+      text: box.dataset.url,
+      width: 84,
+      height: 84,
+      colorDark: "#2c1810",
+      colorLight: "#ffffff",
+      correctLevel: QRCode.CorrectLevel.M
+    });
+  });
+
+  function copyTableUrl(btn) {
+    const url = btn.closest("td").querySelector(".qr-canvas").dataset.url;
+    navigator.clipboard.writeText(url);
+    btn.textContent = "Copied!";
+    setTimeout(() => { btn.textContent = "Copy URL"; }, 1500);
+  }
+</script>
 {% endblock %}
+
