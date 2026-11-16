@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block title %}Tables &amp; QR | TableCraft{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4" style="max-width: 960px;">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h1 class="h4 fw-bold mb-1">Tables &amp; QR Codes</h1>
+      <p class="text-muted small mb-0">Add new booths/tables after renovations, deactivate removed ones, or rotate QR tokens.</p>
+    </div>
+  </div>
+
+  <div class="card mb-4">
+    <div class="card-body">
+      <form method="post" class="row g-2 align-items-end">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="create">
+        <div class="col-sm-6 col-md-4">
+          <label for="table_number" class="form-label small fw-semibold">New Table / Booth Label</label>
+          <input type="text" id="table_number" name="table_number" maxlength="10" class="form-control" placeholder="e.g., T-01 or B-01" required>
+        </div>
+        <div class="col-auto">
+          <button type="submit" class="btn btn-dark">Add Table</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="table-responsive">
+      <table class="table align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Table</th>
+            <th>Status</th>
+            <th>Customer QR Menu Link</th>
+            <th class="text-end">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for t in tables %}
+            <tr>
+              <td class="fw-bold">{{ t.table_number }}</td>
+              <td>
+                {% if t.is_active %}
+                  <span class="badge bg-success">Active</span>
+                {% else %}
+                  <span class="badge bg-secondary">Inactive</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if t.is_active %}
+                  <div class="d-flex align-items-center gap-3">
+                    <div class="qr-canvas p-1 bg-white border rounded"
+                         data-url="{{ request.scheme }}://{{ request.get_host }}{% url 'pos:customer_menu' t.qr_token %}">
+                    </div>
+                    <div class="d-flex flex-column gap-1">
+                      <a href="{% url 'pos:customer_menu' t.qr_token %}" target="_blank" class="btn btn-sm btn-outline-primary">
+                        Open Table Menu
+                      </a>
+                      <button type="button" class="btn btn-sm btn-outline-secondary"
+                              onclick="copyTableUrl(this)">
+                        Copy URL
+                      </button>
+                    </div>
+                  </div>
+                {% else %}
+                  <span class="text-muted small">Disabled while inactive</span>
+                {% endif %}
+              </td>
+              <td class="text-end">
+                <form method="post" class="d-inline">
+                  {% csrf_token %}
+                  <input type="hidden" name="table_id" value="{{ t.id }}">
+                  <button type="submit" name="action" value="regenerate" class="btn btn-sm btn-outline-warning" onclick="return confirm('Invalidate the old QR code for {{ t.table_number }}?');">
+                    Rotate QR
+                  </button>
+                  <button type="submit" name="action" value="toggle" class="btn btn-sm btn-outline-secondary">
+                    {% if t.is_active %}Deactivate{% else %}Activate{% endif %}
+                  </button>
+                </form>
+              </td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="4" class="text-center text-muted py-4">No tables configured yet. Add your first table above.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+<script>
+  document.querySelectorAll(".qr-canvas").forEach((box) => {
+    new QRCode(box, {
+      text: box.dataset.url,
+      width: 84,
+      height: 84,
+      colorDark: "#2c1810",
+      colorLight: "#ffffff",
+      correctLevel: QRCode.CorrectLevel.M
+    });
+  });
+
+  function copyTableUrl(btn) {
+    const url = btn.closest("td").querySelector(".qr-canvas").dataset.url;
+    navigator.clipboard.writeText(url);
+    btn.textContent = "Copied!";
+    setTimeout(() => { btn.textContent = "Copy URL"; }, 1500);
+  }
+</script>
+{% endblock %}
+
