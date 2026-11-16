@@ -527,6 +527,15 @@
               </svg>
               <span>My profile</span>
             </a>
+            {% if user.is_superuser or user.role == 'OWNER' %}
+              <a class="tc-rail-link {% if request.resolver_match.url_name == 'manage_tables' %}is-active{% endif %}" href="{% url 'pos:manage_tables' %}">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+                  <rect x="3" y="14" width="7" height="7"/><path d="M14 14h7v7h-7z"/>
+                </svg>
+                <span>Tables &amp; QR</span>
+              </a>
+            {% endif %}
           </nav>
         </div>
 
