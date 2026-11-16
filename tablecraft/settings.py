@@ -19,6 +19,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "accounts",
     "dashboard",
+    "pos",
 ]
 
 MIDDLEWARE = [
@@ -87,3 +88,7 @@ LOGOUT_REDIRECT_URL = "accounts:login"
 
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
+
+TIME_ZONE = "Asia/Manila"
+USE_TZ = True
+ORDER_EXPIRY_MINUTES = 15

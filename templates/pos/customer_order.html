@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Order {{ order.order_number }} | TableCraft</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    :root { --bg: #faf7f2; --surface: #ffffff; --ink: #2c1810; --muted: #7a6558; --accent: #c85a17; --rule: #e6ddd3; }
+    body { background: var(--bg); color: var(--ink); font-family: system-ui, -apple-system, sans-serif; }
+    .tc-card { background: var(--surface); border: 1px solid var(--rule); border-radius: 12px; padding: 1.25rem; }
+    .order-code { font-size: 2rem; font-weight: 800; letter-spacing: 0.04em; color: var(--accent); }
+  </style>
+</head>
+<body>
+  <main class="container py-4" style="max-width: 540px;">
+    <div class="tc-card text-center mb-3">
+      <div class="small text-uppercase fw-bold" style="color: var(--muted);">Table {{ order.table.table_number }} &bull; Order Number</div>
+      <div class="order-code my-1">{{ order.order_number }}</div>
+      <div class="mt-2">
+        <span id="statusBadge" class="badge fs-6 px-3 py-2 bg-dark">{{ order.status }}</span>
+      </div>
+
+      <div id="paymentBanner" class="alert alert-warning mt-3 mb-0 {% if order.status != 'Pending Payment' %}d-none{% endif %}">
+        Show <strong>{{ order.order_number }}</strong> to the cashier and pay to send your order to the kitchen.<br>
+        <span class="small fw-bold">Expires in: <span id="countdown">--:--</span></span>
+      </div>
+
+      <div id="cancelBanner" class="alert alert-danger mt-3 mb-0 {% if order.status != 'Cancelled' %}d-none{% endif %}">
+        Order Cancelled (<span id="cancelReason">{{ order.cancel_reason|default:"Cancelled" }}</span>)
+      </div>
+    </div>
+
+    <div class="tc-card mb-3">
+      <h2 class="h6 fw-bold mb-3">Order Receipt</h2>
+      {% for line in order.items.all %}
+        <div class="d-flex justify-content-between py-2" style="border-bottom: 1px solid var(--rule);">
+          <div>
+            <div class="fw-medium">{{ line.quantity }}x {{ line.item_name }}</div>
+            {% if line.note %}<div class="small" style="color: var(--muted);">Note: {{ line.note }}</div>{% endif %}
+          </div>
+          <div class="fw-semibold">&#8369;{{ line.line_total }}</div>
+        </div>
+      {% endfor %}
+      <div class="d-flex justify-content-between pt-3 fw-bold fs-5">
+        <span>Total</span>
+        <span>&#8369;{{ order.total_amount }}</span>
+      </div>
+    </div>
+
+    <div class="text-center">
+      <a href="{% url 'pos:customer_menu' order.table.qr_token %}" class="btn btn-outline-dark btn-sm">
+        Place Another Order for Table {{ order.table.table_number }}
+      </a>
+    </div>
+  </main>
+
+  <script>
+    const statusUrl = "{% url 'pos:api_order_status' order.public_token %}";
+    let expiresAt = new Date("{{ order.expires_at|date:'c' }}");
+    let currentStatus = "{{ order.status }}";
+    let pollTimer = null;
+
+    function updateCountdown() {
+      if (currentStatus !== "Pending Payment") return;
+      const diffMs = expiresAt - new Date();
+      if (diffMs <= 0) {
+        document.getElementById("countdown").textContent = "00:00";
+        pollStatus();
+        return;
+      }
+      const totalSec = Math.floor(diffMs / 1000);
+      const mins = String(Math.floor(totalSec / 60)).padStart(2, "0");
+      const secs = String(totalSec % 60).padStart(2, "0");
+      document.getElementById("countdown").textContent = `${mins}:${secs}`;
+    }
+
+    async function pollStatus() {
+      if (currentStatus === "Served" || currentStatus === "Cancelled") {
+        if (pollTimer) clearInterval(pollTimer);
+        return;
+      }
+      if (document.visibilityState !== "visible") return;
+
+      try {
+        const res = await fetch(statusUrl);
+        if (!res.ok) return;
+        const data = await res.json();
+        currentStatus = data.status;
+        document.getElementById("statusBadge").textContent = currentStatus;
+
+        document.getElementById("paymentBanner").classList.toggle("d-none", currentStatus !== "Pending Payment");
+        document.getElementById("cancelBanner").classList.toggle("d-none", currentStatus !== "Cancelled");
+        if (data.cancel_reason) {
+          document.getElementById("cancelReason").textContent = data.cancel_reason;
+        }
+
+        if (data.is_terminal && pollTimer) {
+          clearInterval(pollTimer);
+          pollTimer = null;
+        }
+      } catch (e) {}
+    }
+
+    setInterval(updateCountdown, 1000);
+    updateCountdown();
+
+    if (currentStatus !== "Served" && currentStatus !== "Cancelled") {
+      pollTimer = setInterval(pollStatus, 2000);
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible") pollStatus();
+      });
+    }
+  </script>
+</body>
+</html>
