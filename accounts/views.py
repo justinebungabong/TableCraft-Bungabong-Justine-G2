@@ -7,8 +7,8 @@ from .models import CustomUser
 
 @login_required
 def signup_view(request):
-    if not request.user.is_manager:
-        messages.error(request, "Access denied. Only Managers can create staff accounts.")
+    if not request.user.is_superuser:
+        messages.error(request, "Access denied. Only the Owner can create staff accounts.")
         return redirect("dashboard:index")
 
     if request.method == "POST":
@@ -25,15 +25,11 @@ def signup_view(request):
 
 @login_required
 def staff_edit_view(request, pk):
-    if not request.user.is_manager:
-        messages.error(request, "Access denied. Only Managers can edit staff accounts.")
+    if not request.user.is_superuser:
+        messages.error(request, "Access denied. Only the Owner can edit staff accounts.")
         return redirect("dashboard:index")
 
     member = get_object_or_404(CustomUser, pk=pk)
-
-    if not request.user.is_superuser and (member.is_superuser or member.role == CustomUser.Role.MANAGER):
-        messages.error(request, "Only the Owner can modify Manager or Owner accounts.")
-        return redirect("dashboard:index")
 
     if request.method == "POST":
         form = StaffManageForm(request.POST, instance=member, current_user=request.user)
@@ -53,17 +49,13 @@ def staff_edit_view(request, pk):
 
 @login_required
 def staff_toggle_active_view(request, pk):
-    if request.method != "POST" or not request.user.is_manager:
+    if request.method != "POST" or not request.user.is_superuser:
         return redirect("dashboard:index")
 
     member = get_object_or_404(CustomUser, pk=pk)
 
     if member == request.user:
         messages.error(request, "You cannot deactivate your own account.")
-        return redirect("dashboard:index")
-
-    if not request.user.is_superuser and (member.is_superuser or member.role == CustomUser.Role.MANAGER):
-        messages.error(request, "Only the Owner can change the status of Manager accounts.")
         return redirect("dashboard:index")
 
     member.is_active = not member.is_active
