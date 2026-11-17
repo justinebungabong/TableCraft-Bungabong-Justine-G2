@@ -1,0 +1,191 @@
+{% extends "base.html" %}
+{% block title %}Menu | TableCraft{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4" style="max-width: 1080px;">
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+    <div>
+      <h1 class="h4 fw-bold mb-1">Menu Maintenance</h1>
+      <p class="text-muted small mb-0">
+        Categories and items shown on every table menu. Mark an item sold out when it runs out,
+        and archive items you no longer serve instead of deleting them.
+      </p>
+    </div>
+    <div class="d-flex gap-2">
+      <span class="badge bg-dark">{{ item_count }} item{{ item_count|pluralize }}</span>
+      <span class="badge bg-secondary">{{ sold_out_count }} sold out</span>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-4">
+    <div class="col-lg-4">
+      <div class="card h-100">
+        <div class="card-body">
+          <h2 class="h6 fw-bold mb-3">Add category</h2>
+          <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="create_category">
+            <div class="mb-2">
+              <label for="{{ category_form.category_name.id_for_label }}" class="form-label small fw-semibold">Category name</label>
+              {{ category_form.category_name }}
+              {% for error in category_form.category_name.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+            </div>
+            <div class="row g-2 align-items-end">
+              <div class="col-5">
+                <label for="{{ category_form.display_order.id_for_label }}" class="form-label small fw-semibold">Order</label>
+                {{ category_form.display_order }}
+                {% for error in category_form.display_order.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+              </div>
+              <div class="col-7">
+                <div class="form-check">
+                  {{ category_form.is_active }}
+                  <label class="form-check-label small" for="{{ category_form.is_active.id_for_label }}">Active</label>
+                </div>
+              </div>
+            </div>
+            <button type="submit" class="btn btn-dark btn-sm mt-3">Add category</button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-8">
+      <div class="card h-100">
+        <div class="card-body">
+          <h2 class="h6 fw-bold mb-3">Add menu item</h2>
+          {% if categories %}
+            <form method="post">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="create_item">
+              <div class="row g-2">
+                <div class="col-sm-6">
+                  <label for="{{ item_form.category.id_for_label }}" class="form-label small fw-semibold">Category</label>
+                  {{ item_form.category }}
+                  {% for error in item_form.category.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+                </div>
+                <div class="col-sm-6">
+                  <label for="{{ item_form.item_name.id_for_label }}" class="form-label small fw-semibold">Item name</label>
+                  {{ item_form.item_name }}
+                  {% for error in item_form.item_name.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+                </div>
+                <div class="col-sm-8">
+                  <label for="{{ item_form.description.id_for_label }}" class="form-label small fw-semibold">Description</label>
+                  {{ item_form.description }}
+                  {% for error in item_form.description.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+                </div>
+                <div class="col-sm-4">
+                  <label for="{{ item_form.price.id_for_label }}" class="form-label small fw-semibold">Price (PHP)</label>
+                  {{ item_form.price }}
+                  {% for error in item_form.price.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+                </div>
+                <div class="col-sm-8">
+                  <label for="{{ item_form.image_url.id_for_label }}" class="form-label small fw-semibold">Image URL</label>
+                  {{ item_form.image_url }}
+                  {% for error in item_form.image_url.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+                </div>
+                <div class="col-sm-4 d-flex align-items-end gap-3 pb-1">
+                  <div class="form-check">
+                    {{ item_form.is_available }}
+                    <label class="form-check-label small" for="{{ item_form.is_available.id_for_label }}">Available</label>
+                  </div>
+                  <div class="form-check">
+                    {{ item_form.is_active }}
+                    <label class="form-check-label small" for="{{ item_form.is_active.id_for_label }}">Active</label>
+                  </div>
+                </div>
+              </div>
+              {% for error in item_form.non_field_errors %}<div class="text-danger small mt-2">{{ error }}</div>{% endfor %}
+              <button type="submit" class="btn btn-dark btn-sm mt-3">Add item</button>
+            </form>
+          {% else %}
+            <p class="text-muted small mb-0">Create a category first, then add items to it.</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {% for section in categories %}
+    <div class="card mb-3">
+      <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <div class="d-flex align-items-center gap-2">
+          <span class="fw-bold">{{ section.category_name }}</span>
+          <span class="badge {% if section.is_active %}bg-success{% else %}bg-secondary{% endif %}">
+            {% if section.is_active %}Active{% else %}Archived{% endif %}
+          </span>
+          <span class="text-muted small">order {{ section.display_order }}</span>
+        </div>
+        <form method="post" class="mb-0">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="toggle_category">
+          <input type="hidden" name="category_id" value="{{ section.id }}">
+          <button type="submit" class="btn btn-sm btn-outline-secondary">
+            {% if section.is_active %}Archive category{% else %}Restore category{% endif %}
+          </button>
+        </form>
+      </div>
+      <div class="table-responsive">
+        <table class="table align-middle mb-0">
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th>Price</th>
+              <th>Availability</th>
+              <th>Status</th>
+              <th class="text-end">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in section.items.all %}
+              <tr>
+                <td>
+                  <div class="fw-semibold">{{ item.item_name }}</div>
+                  {% if item.description %}<div class="text-muted small">{{ item.description }}</div>{% endif %}
+                </td>
+                <td>₱{{ item.price }}</td>
+                <td>
+                  {% if item.is_available %}
+                    <span class="badge bg-success">Available</span>
+                  {% else %}
+                    <span class="badge bg-warning text-dark">Sold Out</span>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if item.is_active %}
+                    <span class="badge bg-success">Active</span>
+                  {% else %}
+                    <span class="badge bg-secondary">Archived</span>
+                  {% endif %}
+                </td>
+                <td class="text-end">
+                  <form method="post" class="d-inline">
+                    {% csrf_token %}
+                    <input type="hidden" name="item_id" value="{{ item.id }}">
+                    <button type="submit" name="action" value="toggle_item_available" class="btn btn-sm btn-outline-warning">
+                      {% if item.is_available %}Mark Sold Out{% else %}Mark Available{% endif %}
+                    </button>
+                    <button type="submit" name="action" value="toggle_item_active" class="btn btn-sm btn-outline-secondary">
+                      {% if item.is_active %}Archive{% else %}Restore{% endif %}
+                    </button>
+                  </form>
+                  <a href="{% url 'pos:menu_item_edit' item.pk %}" class="btn btn-sm btn-outline-primary">Edit</a>
+                </td>
+              </tr>
+            {% empty %}
+              <tr>
+                <td colspan="5" class="text-center text-muted py-3">No items in this category yet.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  {% empty %}
+    <div class="card">
+      <div class="card-body text-center text-muted py-4">
+        No menu categories yet. Add your first category above.
+      </div>
+    </div>
+  {% endfor %}
+</div>
+{% endblock %}
