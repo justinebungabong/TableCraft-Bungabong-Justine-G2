@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Access denied | TableCraft{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-5" style="max-width: 720px;">
+  <div class="card">
+    <div class="card-body p-4 p-md-5">
+      <p class="text-uppercase small fw-bold mb-2" style="letter-spacing: .12em; color: #b4562a;">403 Forbidden</p>
+      <h1 class="h4 fw-bold mb-2">You do not have access to this page</h1>
+      <p class="mb-4" style="color: var(--muted);">
+        {{ exception|default:"Your role is not allowed to open this screen." }}
+      </p>
+      <a href="{% url 'dashboard:index' %}" class="btn btn-dark btn-sm">Back to Operations</a>
+    </div>
+  </div>
+</div>
+{% endblock %}
