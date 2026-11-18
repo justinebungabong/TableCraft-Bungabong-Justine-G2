@@ -536,6 +536,17 @@
                 <span>Tables &amp; QR</span>
               </a>
             {% endif %}
+            {% if user.is_manager or user.is_superuser %}
+              <a class="tc-rail-link {% if request.resolver_match.url_name == 'manage_menu' or request.resolver_match.url_name == 'menu_item_edit' %}is-active{% endif %}" href="{% url 'pos:manage_menu' %}">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M4 4h13l3 3v13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"/>
+                  <line x1="7" y1="9" x2="16" y2="9"/>
+                  <line x1="7" y1="13" x2="16" y2="13"/>
+                  <line x1="7" y1="17" x2="12" y2="17"/>
+                </svg>
+                <span>Menu</span>
+              </a>
+            {% endif %}
           </nav>
         </div>
 

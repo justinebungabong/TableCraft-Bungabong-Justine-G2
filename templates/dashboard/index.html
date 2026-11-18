@@ -29,7 +29,7 @@
     </div>
   </div>
 
-  {% if user.is_manager %}
+  {% if user.is_superuser %}
     <div>
       <a href="{% url 'accounts:signup' %}" class="btn-accent">Add staff member</a>
     </div>
@@ -64,7 +64,7 @@
               {% endif %}
             </td>
             <td class="pe-4 py-3 text-end">
-              {% if user.is_superuser or not member.is_superuser and member.role != "MANAGER" %}
+              {% if user.is_superuser %}
                 <div class="d-inline-flex align-items-center gap-1">
                   <a href="{% url 'accounts:staff_edit' member.pk %}" class="tc-row-action">Edit</a>
                   {% if member != user %}
