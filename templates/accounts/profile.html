@@ -4,7 +4,7 @@
 {% block content %}
 <div class="tc-header-bar">
   <div class="d-flex align-items-center gap-3">
-    {% if user.profile_photo %}
+    {% if user.has_profile_photo %}
       <img src="{{ user.profile_photo.url }}" alt="{{ user.username }}" class="tc-avatar">
     {% else %}
       <div class="tc-avatar-fallback">
