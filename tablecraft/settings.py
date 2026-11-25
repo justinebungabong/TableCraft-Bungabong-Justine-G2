@@ -74,7 +74,7 @@ USE_I18N = True
 USE_TZ = True
 
 STATIC_URL = "static/"
-MEDIA_URL = "media/"
+MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
@@ -86,9 +86,8 @@ LOGIN_REDIRECT_URL = "dashboard:index"
 LOGOUT_REDIRECT_URL = "accounts:login"
 
 
-MEDIA_URL = "/media/"
-MEDIA_ROOT = BASE_DIR / "media"
-
-TIME_ZONE = "Asia/Manila"
-USE_TZ = True
+# Order lifecycle settings
 ORDER_EXPIRY_MINUTES = 15
+
+# Uploaded media is served by Django only in DEBUG (see tablecraft/urls.py).
+# In production, point MEDIA_URL at object storage or the web server.
