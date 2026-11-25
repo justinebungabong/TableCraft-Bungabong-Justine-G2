@@ -225,7 +225,7 @@ def api_order_status(request, public_token):
     )
 
 def _require_owner(user):
-    if not (user.is_superuser or getattr(user, "role", "") == "OWNER"):
+    if not user.is_superuser:
         raise PermissionDenied("Only the Owner/Admin can manage tables and QR codes.")
 
 

@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Page not found | TableCraft{% endblock %}
+
+{% comment %}
+base.html renders one of two blocks depending on whether a user is signed in,
+so the panel is included in both. A 404 is most often hit while signed out.
+{% endcomment %}
+{% block content %}
+  {% include "partials/error_panel.html" with code="404 Not Found" heading="We couldn't find that page" message="The address may be mistyped, or this table's QR code has been rotated. Start again from the dashboard." action="Back to Operations" %}
+{% endblock %}
+
+{% block unauthenticated_content %}
+  {% include "partials/error_panel.html" with code="404 Not Found" heading="We couldn't find that page" message="The address may be mistyped, or this table's QR code has been rotated. Ask a staff member for a fresh code." action="Back to sign in" %}
+{% endblock %}
