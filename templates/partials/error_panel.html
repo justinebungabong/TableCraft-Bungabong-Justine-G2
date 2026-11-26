@@ -1,0 +1,10 @@
+<div class="container-fluid py-5" style="max-width: 720px;">
+  <div class="card">
+    <div class="card-body p-4 p-md-5">
+      <p class="text-uppercase small fw-bold mb-2" style="letter-spacing: .12em; color: #b4562a;">{{ code }}</p>
+      <h1 class="h4 fw-bold mb-2">{{ heading }}</h1>
+      <p class="mb-4" style="color: var(--muted);">{{ message }}</p>
+      <a href="{% url 'home' %}" class="btn btn-dark btn-sm">{{ action|default:"Back to TableCraft" }}</a>
+    </div>
+  </div>
+</div>
