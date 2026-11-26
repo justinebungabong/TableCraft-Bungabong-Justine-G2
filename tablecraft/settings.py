@@ -1,4 +1,5 @@
 import os
+import sys
 from pathlib import Path
 from dotenv import load_dotenv
 import dj_database_url
@@ -98,3 +99,8 @@ ORDER_EXPIRY_MINUTES = 15
 
 # Uploaded media is served by Django only in DEBUG (see tablecraft/urls.py).
 # In production, point MEDIA_URL at object storage or the web server.
+
+# Keep the real database out of the test suite: `manage.py test` runs against an
+# in-memory SQLite database instead of the configured DATABASE_URL.
+if "test" in sys.argv:
+    DATABASES["default"] = {"ENGINE": "django.db.backends.sqlite3", "NAME": ":memory:"}
