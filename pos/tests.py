@@ -553,6 +553,14 @@ class MenuTests(TableCraftTestCase):
             404,
         )
 
+    def test_non_numeric_item_and_category_ids_500_known_gap(self):
+        """Documents current behaviour: get_object_or_404(pk='abc') raises ValueError (step 4 -> 400)."""
+        self.login()
+        self.client.raise_request_exception = False
+        for action, field in (("toggle_item_active", "item_id"), ("toggle_category", "category_id")):
+            response = self.client.post(reverse("pos:manage_menu"), {"action": action, field: "abc"})
+            self.assertEqual(response.status_code, 500, action)
+
     def test_unknown_action_does_nothing(self):
         self.login()
         count = MenuItem.objects.count()
@@ -827,6 +835,13 @@ class OrderingApiTests(TableCraftTestCase):
     def test_missing_items_400(self):
         self.assertEqual(self.submit({}).status_code, 400)
 
+    def test_non_dict_item_entries_500_known_gap(self):
+        """Documents current behaviour: entry.get() on a non-dict raises AttributeError (step 4 -> 400)."""
+        self.client.raise_request_exception = False
+        for entry in ("x", 1, [], None):
+            response = self.submit({"items": [entry]})
+            self.assertEqual(response.status_code, 500, entry)
+
     def test_empty_items_400(self):
         self.assertEqual(self.submit({"items": []}).status_code, 400)
 
@@ -1045,3 +1060,20 @@ class ErrorPageTests(TableCraftTestCase):
 
         self.assertEqual(urls.handler404, "django.views.defaults.page_not_found")
         self.assertEqual(urls.handler500, "django.views.defaults.server_error")
+
+    def test_403_anonymous_csrf_failure_shows_blank_panel_known_gap(self):
+        """Documents a gap: 403.html fills only the signed-in block.
+
+        An anonymous CSRF failure (e.g. a customer whose page sat open past the
+        session) therefore renders no message at all. Step 4 mirrors the 404/500 fix.
+        """
+        from django.test import Client
+
+        client = Client(enforce_csrf_checks=True)
+        response = client.post(
+            reverse("pos:api_order_submit", args=[self.table.qr_token]),
+            data=json.dumps({"items": [{"item_id": self.item.pk, "quantity": 1}]}),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 403)
+        self.assertNotContains(response, "You do not have access", status_code=403)
