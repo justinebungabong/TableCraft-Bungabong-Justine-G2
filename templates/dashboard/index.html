@@ -70,7 +70,8 @@
                   {% if member != user %}
                     <form method="post" action="{% url 'accounts:staff_toggle_active' member.pk %}" class="d-inline">
                       {% csrf_token %}
-                      <button type="submit" class="tc-row-action tc-row-action-muted">
+                      <button type="submit" class="tc-row-action tc-row-action-muted"
+                        {% if member.is_active %}onclick="return confirm('Deactivate {{ member.username|escapejs }}? They will be signed out immediately.');"{% endif %}>
                         {% if member.is_active %}Deactivate{% else %}Activate{% endif %}
                       </button>
                     </form>
