@@ -7,7 +7,9 @@ Runs on in-memory SQLite, never on the real database (see tablecraft.settings).
 
 import json
 from decimal import Decimal
+from unittest.mock import patch
 
+from django.db import IntegrityError, transaction
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
@@ -804,6 +806,17 @@ class OrderingApiTests(TableCraftTestCase):
     def submit(self, payload, raw=None, content_type="application/json"):
         return self.client.post(self.url, data=raw if raw is not None else json.dumps(payload), content_type=content_type)
 
+    @staticmethod
+    def backdate(order, minutes=5):
+        """Age an order without breaking chk_order_expires_after_created."""
+        now = timezone.now()
+        Order.objects.filter(pk=order.pk).update(
+            created_at=now - timezone.timedelta(minutes=minutes + 15),
+            expires_at=now - timezone.timedelta(minutes=minutes),
+        )
+        order.refresh_from_db()
+        return order
+
     # --- happy path ---------------------------------------------------------
     def test_valid_order(self):
         response = self.submit({"items": [{"item_id": self.item.pk, "quantity": 2}]})
@@ -1000,16 +1013,19 @@ class OrderingApiTests(TableCraftTestCase):
     def test_paid_orders_do_not_count_toward_cap(self):
         for _ in range(3):
             self.submit({"items": [{"item_id": self.item.pk, "quantity": 1}]})
-        Order.objects.update(status="Paid")
+        Order.objects.update(
+            status="Paid",
+            paid_at=timezone.now(),
+            paid_by=self.owner,
+            payment_method="Cash",
+        )
         self.assertEqual(self.submit({"items": [{"item_id": self.item.pk, "quantity": 1}]}).status_code, 200)
 
     # --- expiry -------------------------------------------------------------
     def test_expired_unpaid_order_cancelled_before_next_submit(self):
         """BR-20: an unpaid order past expires_at is cancelled, then the table can order again."""
         self.submit({"items": [{"item_id": self.item.pk, "quantity": 1}]})
-        order = Order.objects.get()
-        order.expires_at = timezone.now() - timezone.timedelta(seconds=1)
-        order.save(update_fields=["expires_at"])
+        order = self.backdate(Order.objects.get(), minutes=1)
 
         response = self.submit({"items": [{"item_id": self.item.pk, "quantity": 1}]})
         self.assertEqual(response.status_code, 200)
@@ -1021,7 +1037,8 @@ class OrderingApiTests(TableCraftTestCase):
         for _ in range(3):
             self.submit({"items": [{"item_id": self.item.pk, "quantity": 1}]})
         self.assertEqual(self.submit({"items": [{"item_id": self.item.pk, "quantity": 1}]}).status_code, 409)
-        Order.objects.update(expires_at=timezone.now() - timezone.timedelta(minutes=1))
+        for order in Order.objects.all():
+            self.backdate(order)
         self.assertEqual(self.submit({"items": [{"item_id": self.item.pk, "quantity": 1}]}).status_code, 200)
         cancelled = Order.objects.filter(status="Cancelled").count()
         self.assertEqual(cancelled, 3)
@@ -1032,16 +1049,18 @@ class OrderingApiTests(TableCraftTestCase):
 
     def test_expired_order_not_reset_if_terminal(self):
         order = Order.objects.create(
-            table=self.table, status="Paid", expires_at=timezone.now() - timezone.timedelta(minutes=1)
+            table=self.table, status="Paid", paid_at=timezone.now(), paid_by=self.owner
         )
+        self.backdate(order)
         self.client.get(reverse("pos:api_order_status", args=[order.public_token]))
         order.refresh_from_db()
         self.assertEqual(order.status, "Paid")
 
     def test_expiry_only_applies_to_pending_payment(self):
         order = Order.objects.create(
-            table=self.table, status="Served", expires_at=timezone.now() - timezone.timedelta(minutes=1)
+            table=self.table, status="Served", paid_at=timezone.now(), paid_by=self.owner
         )
+        self.backdate(order)
         self.client.get(reverse("pos:customer_order", args=[order.public_token]))
         order.refresh_from_db()
         self.assertEqual(order.status, "Served")
@@ -1124,3 +1143,185 @@ class ErrorPageTests(TableCraftTestCase):
         response = self.client.get(reverse("pos:manage_tables"))
         self.assertEqual(response.status_code, 403)
         self.assertContains(response, "You do not have access", status_code=403)
+
+
+class DataIntegrityTests(TableCraftTestCase):
+    """ISS-05: the database refuses corrupt rows, not only the forms/views."""
+
+    def new_order(self, **kwargs):
+        return Order.objects.create(table=self.table, **kwargs)
+
+    def assert_rejected(self, build):
+        """Roll back to a savepoint so the outer TestCase transaction survives."""
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                build()
+
+    # --- order amounts ------------------------------------------------------
+    def test_negative_total_rejected_at_database_level(self):
+        self.assert_rejected(lambda: self.new_order(total_amount=Decimal("-0.01")))
+
+    def test_negative_amount_tendered_rejected_at_database_level(self):
+        self.assert_rejected(lambda: self.new_order(amount_tendered=Decimal("-1.00")))
+
+    def test_negative_change_amount_rejected_at_database_level(self):
+        self.assert_rejected(lambda: self.new_order(change_amount=Decimal("-1.00")))
+
+    def test_null_tendered_and_change_still_allowed(self):
+        order = self.new_order()
+        self.assertIsNone(order.amount_tendered)
+        self.assertIsNone(order.change_amount)
+
+    # --- enumerated fields --------------------------------------------------
+    def test_unknown_status_rejected_at_database_level(self):
+        self.assert_rejected(lambda: self.new_order(status="Unknown"))
+
+    def test_unknown_payment_method_rejected_at_database_level(self):
+        self.assert_rejected(lambda: self.new_order(payment_method="Bitcoin"))
+
+    def test_documented_payment_methods_allowed(self):
+        for method in ("Cash", "Card", "E-Wallet"):
+            order = self.new_order()
+            order.payment_method = method
+            order.save(update_fields=["payment_method"])
+            order.refresh_from_db()
+            self.assertEqual(order.payment_method, method)
+
+    # --- lifecycle field completeness --------------------------------------
+    def test_cancelled_without_cancelled_at_rejected(self):
+        self.assert_rejected(
+            lambda: self.new_order(status="Cancelled", cancel_type="Cashier", cancelled_by=self.owner)
+        )
+
+    def test_cancelled_without_cancel_type_rejected(self):
+        self.assert_rejected(
+            lambda: self.new_order(status="Cancelled", cancelled_at=timezone.now(), cancelled_by=self.owner)
+        )
+
+    def test_human_cancellation_requires_actor(self):
+        self.assert_rejected(
+            lambda: self.new_order(status="Cancelled", cancelled_at=timezone.now(), cancel_type="Void")
+        )
+
+    def test_system_expiry_has_no_human_actor(self):
+        order = self.new_order(
+            status="Cancelled", cancelled_at=timezone.now(), cancel_type="Expired"
+        )
+        order.refresh_from_db()
+        self.assertIsNone(order.cancelled_by)
+        self.assertEqual(order.cancel_type, "Expired")
+
+    def test_paid_status_requires_paid_at_and_paid_by(self):
+        self.assert_rejected(lambda: self.new_order(status="Paid"))
+        self.assert_rejected(
+            lambda: self.new_order(status="Paid", paid_at=timezone.now())
+        )
+        self.assert_rejected(
+            lambda: self.new_order(status="Paid", paid_by=self.owner)
+        )
+
+    def test_fully_recorded_payment_allowed(self):
+        order = self.new_order(
+            status="Paid", paid_at=timezone.now(), paid_by=self.owner, payment_method="Cash"
+        )
+        order.refresh_from_db()
+        self.assertEqual(order.status, "Paid")
+
+    def test_expires_at_must_be_after_created_at(self):
+        self.assert_rejected(
+            lambda: self.new_order(expires_at=timezone.now() - timezone.timedelta(minutes=1))
+        )
+
+    # --- order lines --------------------------------------------------------
+    def test_order_item_quantity_must_be_positive(self):
+        order = self.new_order()
+        self.assert_rejected(
+            lambda: OrderItem.objects.create(
+                order=order, item=self.item, item_name=self.item.item_name,
+                quantity=0, unit_price=self.item.price, line_total=Decimal("0.00"),
+            )
+        )
+
+    def test_order_item_line_total_must_match_price_times_quantity(self):
+        order = self.new_order()
+        # bulk_create skips the model's save() recalculation, like a bad import.
+        self.assert_rejected(
+            lambda: OrderItem.objects.bulk_create([OrderItem(
+                order=order, item=self.item, item_name=self.item.item_name,
+                quantity=2, unit_price=Decimal("100.00"), line_total=Decimal("1.00"),
+            )])
+        )
+
+    def test_consistent_order_line_allowed(self):
+        order = self.new_order()
+        line = OrderItem.objects.create(
+            order=order, item=self.item, quantity=2, unit_price=Decimal("100.00")
+        )
+        self.assertEqual(line.line_total, Decimal("200.00"))
+
+    # --- menu constraints ---------------------------------------------------
+    def test_display_order_bounded_at_database_level(self):
+        self.assert_rejected(
+            lambda: MenuCategory.objects.create(category_name="Too High", display_order=1000)
+        )
+        self.assert_rejected(
+            lambda: MenuCategory.objects.create(category_name="Too Low", display_order=-1)
+        )
+
+    def test_case_insensitive_category_duplicate_rejected_by_database(self):
+        self.assert_rejected(
+            lambda: MenuCategory.objects.create(category_name="main")
+        )
+
+    def test_case_insensitive_item_duplicate_rejected_by_database(self):
+        self.assert_rejected(
+            lambda: MenuItem.objects.create(
+                category=self.main, item_name="fried chicken", price=Decimal("1.00")
+            )
+        )
+
+    # --- atomic save --------------------------------------------------------
+    def test_order_save_is_atomic_when_number_update_fails(self):
+        with patch("pos.models.Order.objects.filter", side_effect=RuntimeError("crash")):
+            with self.assertRaises(RuntimeError):
+                self.new_order()
+        self.assertEqual(Order.objects.count(), 0)
+
+    def test_order_number_never_persists_blank(self):
+        order = self.new_order()
+        order.refresh_from_db()
+        self.assertTrue(order.order_number)
+        self.assertEqual(Order.objects.filter(order_number="").count(), 0)
+
+
+class DestructiveActionConfirmationTests(TableCraftTestCase):
+    """Destructive toggles stay POST-only and now ask before changing data."""
+
+    def test_table_deactivation_confirms(self):
+        self.login()
+        response = self.client.get(reverse("pos:manage_tables"))
+        self.assertContains(response, "confirm('Deactivate table T1", status_code=200)
+
+    def test_qr_rotation_still_confirms(self):
+        self.login()
+        response = self.client.get(reverse("pos:manage_tables"))
+        self.assertContains(response, "Invalidate the old QR code", status_code=200)
+
+    def test_category_archive_confirms(self):
+        self.login()
+        response = self.client.get(reverse("pos:manage_menu"))
+        self.assertContains(response, "confirm('Archive Main", status_code=200)
+
+    def test_menu_item_archive_confirms(self):
+        self.login()
+        response = self.client.get(reverse("pos:manage_menu"))
+        self.assertContains(response, "confirm('Archive Fried Chicken", status_code=200)
+
+    def test_table_deactivation_still_post_only(self):
+        self.login()
+        response = self.client.post(
+            reverse("pos:manage_tables"), {"action": "toggle", "table_id": self.table.pk}, follow=True
+        )
+        self.assertEqual(response.status_code, 200)
+        self.table.refresh_from_db()
+        self.assertFalse(self.table.is_active)

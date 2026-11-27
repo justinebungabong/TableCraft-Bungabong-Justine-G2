@@ -2,9 +2,17 @@ import secrets
 from datetime import timedelta
 from decimal import Decimal
 from django.conf import settings
-from django.db import models
-from django.db.models import Q
+from django.db import models, transaction
+from django.db.models import F, Q
+from django.db.models.functions import Lower
 from django.utils import timezone
+
+
+# ISS-05 on_delete review: every foreign key deliberately uses PROTECT.
+# Orders, order lines and menu records are audit/financial history, so no delete
+# may silently rewrite them. SET_NULL on paid_by/cancelled_by would erase who
+# handled the money; CASCADE on OrderItem.order would erase proof of what was
+# served. Deactivation/archiving is the reversible way to retire a record.
 
 
 def generate_qr_token():
@@ -37,6 +45,16 @@ class MenuCategory(models.Model):
         db_table = "menu_category"
         ordering = ["display_order", "category_name"]
         verbose_name_plural = "Menu categories"
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(display_order__gte=0) & Q(display_order__lte=999),
+                name="chk_category_display_order_range",
+            ),
+            models.UniqueConstraint(
+                Lower("category_name"),
+                name="uq_category_name_case_insensitive",
+            ),
+        ]
 
     def __str__(self):
         return self.category_name
@@ -67,6 +85,11 @@ class MenuItem(models.Model):
             models.CheckConstraint(
                 condition=Q(price__gt=Decimal("0.00")),
                 name="chk_menu_item_price_positive",
+            ),
+            models.UniqueConstraint(
+                "category",
+                Lower("item_name"),
+                name="uq_menu_item_category_name_case_insensitive",
             ),
         ]
 
@@ -141,16 +164,69 @@ class Order(models.Model):
             models.Index(fields=["status", "created_at"], name="idx_orders_status_created"),
             models.Index(fields=["table", "status"], name="idx_orders_table_status"),
         ]
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(total_amount__gte=Decimal("0.00")),
+                name="chk_order_total_non_negative",
+            ),
+            models.CheckConstraint(
+                condition=Q(amount_tendered__gte=Decimal("0.00")) | Q(amount_tendered__isnull=True),
+                name="chk_order_tendered_non_negative",
+            ),
+            models.CheckConstraint(
+                condition=Q(change_amount__gte=Decimal("0.00")) | Q(change_amount__isnull=True),
+                name="chk_order_change_non_negative",
+            ),
+            models.CheckConstraint(
+                condition=Q(status__in=[
+                    "Pending Payment", "Paid", "Preparing", "Ready", "Served", "Cancelled",
+                ]),
+                name="chk_order_status_valid",
+            ),
+            models.CheckConstraint(
+                condition=Q(payment_method__in=["Cash", "Card", "E-Wallet"])
+                | Q(payment_method__isnull=True)
+                | Q(payment_method=""),
+                name="chk_order_payment_method_valid",
+            ),
+            # Expiry is system-generated (BR-20), so it has no human actor.
+            # Cashier/Void cancellations must name who cancelled the order.
+            models.CheckConstraint(
+                condition=~Q(status="Cancelled")
+                | (
+                    Q(cancelled_at__isnull=False)
+                    & Q(cancel_type__isnull=False)
+                    & Q(cancel_type__in=["Expired", "Cashier", "Void"])
+                    & (
+                        Q(cancelled_by__isnull=False)
+                        | Q(cancel_type__isnull=False, cancel_type="Expired")
+                    )
+                ),
+                name="chk_order_cancelled_fields",
+            ),
+            models.CheckConstraint(
+                condition=~Q(status__in=["Paid", "Preparing", "Ready", "Served"])
+                | Q(paid_at__isnull=False, paid_by__isnull=False),
+                name="chk_order_paid_fields",
+            ),
+            models.CheckConstraint(
+                condition=Q(expires_at__gt=F("created_at")),
+                name="chk_order_expires_after_created",
+            ),
+        ]
 
     def save(self, *args, **kwargs):
         if not self.expires_at:
             now = self.created_at or timezone.now()
             expiry_minutes = getattr(settings, "ORDER_EXPIRY_MINUTES", 15)
             self.expires_at = now + timedelta(minutes=expiry_minutes)
-        super().save(*args, **kwargs)
-        if not self.order_number:
-            self.order_number = f"TC-{self.pk:04d}"
-            Order.objects.filter(pk=self.pk).update(order_number=self.order_number)
+        # ISS-05: the insert and the order_number update are one unit. A crash
+        # between them used to leave a blank (unique!) number behind.
+        with transaction.atomic():
+            super().save(*args, **kwargs)
+            if not self.order_number:
+                self.order_number = f"TC-{self.pk:04d}"
+                Order.objects.filter(pk=self.pk).update(order_number=self.order_number)
 
     def __str__(self):
         return f"{self.order_number} ({self.table.table_number} — {self.status})"
@@ -177,6 +253,16 @@ class OrderItem(models.Model):
         db_table = "order_item"
         indexes = [
             models.Index(fields=["order"], name="idx_order_item_order"),
+        ]
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(quantity__gt=0),
+                name="chk_order_item_quantity_positive",
+            ),
+            models.CheckConstraint(
+                condition=Q(line_total=F("quantity") * F("unit_price")),
+                name="chk_order_item_line_total",
+            ),
         ]
 
     def save(self, *args, **kwargs):

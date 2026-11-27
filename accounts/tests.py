@@ -398,6 +398,16 @@ class StaffManageTests(TestCase):
         self.cashier.refresh_from_db()
         self.assertTrue(self.cashier.is_active)
 
+    def test_dashboard_deactivation_asks_for_confirmation(self):
+        self.login()
+        response = self.client.get(reverse("dashboard:index"))
+        self.assertContains(
+            response,
+            "confirm('Deactivate cashier? They will be signed out immediately.')",
+            status_code=200,
+        )
+        self.assertContains(response, "Deactivate", status_code=200)
+
     def test_toggle_by_manager_does_nothing(self):
         self.login("manager")
         self.client.post(reverse("accounts:staff_toggle_active", args=[self.cashier.pk]))

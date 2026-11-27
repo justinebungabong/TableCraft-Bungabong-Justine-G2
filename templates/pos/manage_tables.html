@@ -76,7 +76,8 @@
                   <button type="submit" name="action" value="regenerate" class="btn btn-sm btn-outline-warning" onclick="return confirm('Invalidate the old QR code for {{ t.table_number }}?');">
                     Rotate QR
                   </button>
-                  <button type="submit" name="action" value="toggle" class="btn btn-sm btn-outline-secondary">
+                  <button type="submit" name="action" value="toggle" class="btn btn-sm btn-outline-secondary"
+                    {% if t.is_active %}onclick="return confirm('Deactivate table {{ t.table_number|escapejs }}? Its QR menu will stop working.');"{% endif %}>
                     {% if t.is_active %}Deactivate{% else %}Activate{% endif %}
                   </button>
                 </form>
