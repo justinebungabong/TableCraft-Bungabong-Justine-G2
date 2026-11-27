@@ -59,10 +59,20 @@ TEMPLATES = [
 WSGI_APPLICATION = "tablecraft.wsgi.application"
 
 # Supabase PostgreSQL (No SQLite)
+# Supabase's session pooler caps concurrent sessions (observed: 15). Keeping a
+# connection open for 10 minutes per worker pins those sessions and eventually
+# produces EMAXCONNSESSION. Close connections after each request by default;
+# only raise this when running against a dedicated pooler with a higher cap.
+def db_conn_max_age():
+    """Return a safe connection lifetime for Supabase's session pooler."""
+    return max(0, int(os.getenv("DB_CONN_MAX_AGE", "0")))
+
+
+DB_CONN_MAX_AGE = db_conn_max_age()
 DATABASES = {
     "default": dj_database_url.config(
         default=os.getenv("DATABASE_URL"),
-        conn_max_age=600,
+        conn_max_age=DB_CONN_MAX_AGE,
         ssl_require=True,
     )
 }
