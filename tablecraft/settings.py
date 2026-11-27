@@ -1,4 +1,5 @@
 import os
+import sys
 from pathlib import Path
 from dotenv import load_dotenv
 import dj_database_url
@@ -8,7 +9,13 @@ load_dotenv(BASE_DIR / ".env")
 
 SECRET_KEY = os.getenv("SECRET_KEY")
 DEBUG = os.getenv("DEBUG", "False") == "True"
-ALLOWED_HOSTS = ["127.0.0.1", "localhost"]
+
+# Comma-separated in .env, e.g. ALLOWED_HOSTS=tablecraft.onrender.com,127.0.0.1
+ALLOWED_HOSTS = [
+    host.strip()
+    for host in os.getenv("ALLOWED_HOSTS", "127.0.0.1,localhost").split(",")
+    if host.strip()
+]
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -52,10 +59,20 @@ TEMPLATES = [
 WSGI_APPLICATION = "tablecraft.wsgi.application"
 
 # Supabase PostgreSQL (No SQLite)
+# Supabase's session pooler caps concurrent sessions (observed: 15). Keeping a
+# connection open for 10 minutes per worker pins those sessions and eventually
+# produces EMAXCONNSESSION. Close connections after each request by default;
+# only raise this when running against a dedicated pooler with a higher cap.
+def db_conn_max_age():
+    """Return a safe connection lifetime for Supabase's session pooler."""
+    return max(0, int(os.getenv("DB_CONN_MAX_AGE", "0")))
+
+
+DB_CONN_MAX_AGE = db_conn_max_age()
 DATABASES = {
     "default": dj_database_url.config(
         default=os.getenv("DATABASE_URL"),
-        conn_max_age=600,
+        conn_max_age=DB_CONN_MAX_AGE,
         ssl_require=True,
     )
 }
@@ -73,8 +90,9 @@ TIME_ZONE = "Asia/Manila"
 USE_I18N = True
 USE_TZ = True
 
-STATIC_URL = "static/"
-MEDIA_URL = "media/"
+STATIC_URL = "/static/"
+STATICFILES_DIRS = [BASE_DIR / "static"]
+MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
@@ -86,9 +104,18 @@ LOGIN_REDIRECT_URL = "dashboard:index"
 LOGOUT_REDIRECT_URL = "accounts:login"
 
 
-MEDIA_URL = "/media/"
-MEDIA_ROOT = BASE_DIR / "media"
-
-TIME_ZONE = "Asia/Manila"
-USE_TZ = True
+# Order lifecycle settings
 ORDER_EXPIRY_MINUTES = 15
+
+# ISS-03: the customer ordering lifecycle (payment gate, KDS, status transitions)
+# is a PD4 feature. Keep the workflow switched off until then so a reviewer
+# cannot create an order that nobody can close.
+ORDERING_ENABLED = os.getenv("ORDERING_ENABLED", "False") == "True"
+
+# Uploaded media is served by Django only in DEBUG (see tablecraft/urls.py).
+# In production, point MEDIA_URL at object storage or the web server.
+
+# Keep the real database out of the test suite: `manage.py test` runs against an
+# in-memory SQLite database instead of the configured DATABASE_URL.
+if "test" in sys.argv:
+    DATABASES["default"] = {"ENGINE": "django.db.backends.sqlite3", "NAME": ":memory:"}

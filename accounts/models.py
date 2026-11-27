@@ -35,5 +35,19 @@ class CustomUser(AbstractUser):
     def can_access_kitchen(self):
         return self.role in (self.Role.KITCHEN, self.Role.MANAGER)
 
+    @property
+    def has_profile_photo(self):
+        """True only when a photo is set *and* the file still exists in storage.
+
+        The database can outlive a deleted upload, so checking the field alone
+        renders a broken image; templates use this instead.
+        """
+        if not self.profile_photo:
+            return False
+        try:
+            return self.profile_photo.storage.exists(self.profile_photo.name)
+        except (OSError, ValueError):
+            return False
+
     def __str__(self):
         return f"{self.username} ({self.get_role_display()})"

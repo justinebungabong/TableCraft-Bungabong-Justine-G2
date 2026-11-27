@@ -31,6 +31,12 @@
   <main class="container py-3" style="max-width: 680px;">
     <div id="alertBox" class="alert alert-danger d-none" role="alert"></div>
 
+    {% if not ordering_enabled %}
+      <div class="alert alert-warning" role="status">
+        Ordering opens in the next increment. You can browse the menu, but orders cannot be placed yet.
+      </div>
+    {% endif %}
+
     {% for section in menu_sections %}
       <section class="mb-4">
         <h2 class="h6 text-uppercase fw-bold mb-2" style="color: var(--muted);">{{ section.category.category_name }}</h2>
@@ -71,13 +77,16 @@
         <div class="fw-bold fs-5">&#8369;<span id="cartTotal">0.00</span></div>
       </div>
       <button type="button" id="submitOrderBtn" class="btn btn-copper px-4 py-2" disabled onclick="submitOrder()">
-        Place Order
+        {% if ordering_enabled %}Place Order{% else %}Ordering unavailable{% endif %}
       </button>
     </div>
   </div>
 
   <script>
     const cart = {};
+    const orderingEnabled = {{ ordering_enabled|yesno:"true,false" }};
+    const submitLabel = "{% if ordering_enabled %}Place Order{% else %}Ordering unavailable{% endif %}";
+    const unavailableMessage = "{% if ordering_enabled %}Ordering is not available in this build.{% else %}Ordering opens in the next increment.{% endif %}";
     const csrfToken = "{{ csrf_token }}";
     const availabilityUrl = "{% url 'pos:api_menu_availability' table.qr_token %}";
     const submitUrl = "{% url 'pos:api_order_submit' table.qr_token %}";
@@ -110,12 +119,17 @@
       }
       document.getElementById("cartCount").textContent = count;
       document.getElementById("cartTotal").textContent = total.toFixed(2);
-      document.getElementById("submitOrderBtn").disabled = count === 0;
+      document.getElementById("submitOrderBtn").disabled = !orderingEnabled || count === 0;
     }
 
     async function submitOrder() {
       const btn = document.getElementById("submitOrderBtn");
       const alertBox = document.getElementById("alertBox");
+      if (!orderingEnabled) {
+        alertBox.textContent = unavailableMessage;
+        alertBox.classList.remove("d-none");
+        return;
+      }
       alertBox.classList.add("d-none");
       btn.disabled = true;
       btn.textContent = "Placing...";
@@ -144,7 +158,7 @@
         alertBox.textContent = "Network error. Please try again.";
         alertBox.classList.remove("d-none");
       } finally {
-        btn.textContent = "Place Order";
+        btn.textContent = submitLabel;
         recalcCart();
       }
     }

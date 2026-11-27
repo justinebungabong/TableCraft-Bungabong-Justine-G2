@@ -32,8 +32,9 @@
             </div>
             <div class="row g-2 align-items-end">
               <div class="col-5">
-                <label for="{{ category_form.display_order.id_for_label }}" class="form-label small fw-semibold">Order</label>
+                <label for="{{ category_form.display_order.id_for_label }}" class="form-label small fw-semibold">Sort order</label>
                 {{ category_form.display_order }}
+                <div class="form-text small">{{ category_form.display_order.help_text }}</div>
                 {% for error in category_form.display_order.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
               </div>
               <div class="col-7">
@@ -119,7 +120,8 @@
           {% csrf_token %}
           <input type="hidden" name="action" value="toggle_category">
           <input type="hidden" name="category_id" value="{{ section.id }}">
-          <button type="submit" class="btn btn-sm btn-outline-secondary">
+          <button type="submit" class="btn btn-sm btn-outline-secondary"
+            {% if section.is_active %}onclick="return confirm('Archive {{ section.category_name|escapejs }}? Its items will disappear from the customer menu.');"{% endif %}>
             {% if section.is_active %}Archive category{% else %}Restore category{% endif %}
           </button>
         </form>
@@ -164,7 +166,8 @@
                     <button type="submit" name="action" value="toggle_item_available" class="btn btn-sm btn-outline-warning">
                       {% if item.is_available %}Mark Sold Out{% else %}Mark Available{% endif %}
                     </button>
-                    <button type="submit" name="action" value="toggle_item_active" class="btn btn-sm btn-outline-secondary">
+                    <button type="submit" name="action" value="toggle_item_active" class="btn btn-sm btn-outline-secondary"
+                      {% if item.is_active %}onclick="return confirm('Archive {{ item.item_name|escapejs }}? It will no longer be orderable.');"{% endif %}>
                       {% if item.is_active %}Archive{% else %}Restore{% endif %}
                     </button>
                   </form>

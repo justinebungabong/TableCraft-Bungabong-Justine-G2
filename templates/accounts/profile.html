@@ -4,7 +4,7 @@
 {% block content %}
 <div class="tc-header-bar">
   <div class="d-flex align-items-center gap-3">
-    {% if user.profile_photo %}
+    {% if user.has_profile_photo %}
       <img src="{{ user.profile_photo.url }}" alt="{{ user.username }}" class="tc-avatar">
     {% else %}
       <div class="tc-avatar-fallback">
@@ -61,9 +61,14 @@
 
   <aside class="tc-split-aside">
     <h2 class="h6 fw-bold mb-2">Station identity</h2>
-    <p class="small mb-0" style="color: var(--muted); max-width: 42ch;">
+    <p class="small mb-3" style="color: var(--muted); max-width: 42ch;">
       Your display name and role appear on the station rail and audit logs for orders and kitchen tickets you handle.
     </p>
+    <h2 class="h6 fw-bold mb-2">Sign-in</h2>
+    <p class="small mb-3" style="color: var(--muted); max-width: 42ch;">
+      Passwords are never shown to the Owner. Change yours here if it may have been shared.
+    </p>
+    <a href="{% url 'accounts:password_change' %}" class="btn-sheet">Change password</a>
   </aside>
 </div>
 {% endblock %}
