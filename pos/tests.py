@@ -111,11 +111,11 @@ class TablesTests(TableCraftTestCase):
         self.client.post(reverse("pos:manage_tables"), {"action": "create", "table_number": "t1"})
         self.assertEqual(DiningTable.objects.count(), 1)
 
-    def test_create_accepts_unexpected_characters_known_gap(self):
-        """Documents current behaviour: no charset rule on table labels (PD3 step 4 adds it)."""
+    def test_create_rejects_unexpected_characters(self):
         self.login()
-        self.client.post(reverse("pos:manage_tables"), {"action": "create", "table_number": "@@@"})
-        self.assertTrue(DiningTable.objects.filter(table_number="@@@").exists())
+        for bad in ("@@@", "T/1", "<b>", "T#1"):
+            self.client.post(reverse("pos:manage_tables"), {"action": "create", "table_number": bad})
+        self.assertEqual(DiningTable.objects.count(), 1)
 
     def test_duplicate_label_message(self):
         self.login()
@@ -149,12 +149,22 @@ class TablesTests(TableCraftTestCase):
         response = self.client.post(reverse("pos:manage_tables"), {"action": "toggle", "table_id": "999999"})
         self.assertEqual(response.status_code, 404)
 
-    def test_toggle_non_numeric_table_id_500_known_gap(self):
-        """Documents current behaviour: get_object_or_404(pk='abc') raises ValueError (step 4 -> 404/400)."""
+    def test_toggle_non_numeric_table_id_400(self):
         self.login()
-        self.client.raise_request_exception = False
         response = self.client.post(reverse("pos:manage_tables"), {"action": "toggle", "table_id": "abc"})
-        self.assertEqual(response.status_code, 500)
+        self.assertEqual(response.status_code, 400)
+        self.table.refresh_from_db()
+        self.assertTrue(self.table.is_active)
+
+    def test_regenerate_non_numeric_table_id_400(self):
+        self.login()
+        old_token = self.table.qr_token
+        response = self.client.post(
+            reverse("pos:manage_tables"), {"action": "regenerate", "table_id": "1 OR 1=1"}
+        )
+        self.assertEqual(response.status_code, 400)
+        self.table.refresh_from_db()
+        self.assertEqual(self.table.qr_token, old_token)
 
     def test_toggle_on_inactive_table_still_works_for_owner(self):
         self.login()
@@ -276,37 +286,41 @@ class MenuTests(TableCraftTestCase):
         )
         self.assertEqual(MenuCategory.objects.count(), before)
 
-    def test_category_duplicate_case_insensitive_known_gap(self):
-        """Documents current behaviour: 'main' and 'Main' can coexist (PD3 step 4 fixes)."""
+    def test_category_duplicate_case_insensitive_rejected(self):
         self.login()
-        self.client.post(
+        before = MenuCategory.objects.count()
+        response = self.client.post(
             reverse("pos:manage_menu"),
             {"action": "create_category", "category-category_name": "main", "category-display_order": "1"},
         )
-        self.assertTrue(MenuCategory.objects.filter(category_name="main").exists())
+        self.assertEqual(MenuCategory.objects.count(), before)
+        self.assertContains(response, "already exists")
 
-    def test_category_negative_display_order_known_gap(self):
-        """Documents current behaviour: only the HTML widget sets min=0; no server bound (step 4 adds)."""
+    def test_category_negative_display_order_rejected(self):
         self.login()
         self.client.post(
             reverse("pos:manage_menu"),
             {"action": "create_category", "category-category_name": "QA", "category-display_order": "-5"},
         )
-        self.assertEqual(MenuCategory.objects.get(category_name="QA").display_order, -5)
+        self.assertFalse(MenuCategory.objects.filter(category_name="QA").exists())
 
-    def test_category_display_order_large_value_is_db_dependent_known_gap(self):
-        """Documents a portability trap: the 32767 ceiling comes from the database backend.
-
-        PostgreSQL rejects 99999 through the model field's range validators; SQLite has
-        no small-integer range, so the same form accepts it. Step 4 adds explicit
-        min_value/max_value so the rule no longer depends on the database.
-        """
+    def test_category_display_order_above_max_rejected(self):
+        """The 0-999 bound is explicit, so it behaves the same on SQLite and PostgreSQL."""
         self.login()
         self.client.post(
             reverse("pos:manage_menu"),
             {"action": "create_category", "category-category_name": "QA", "category-display_order": "99999"},
         )
-        self.assertEqual(MenuCategory.objects.filter(category_name="QA").count(), 1)
+        self.assertFalse(MenuCategory.objects.filter(category_name="QA").exists())
+
+    def test_category_display_order_label_and_help(self):
+        self.login()
+        response = self.client.get(reverse("pos:manage_menu"))
+        form = response.context["category_form"]
+        self.assertEqual(form.fields["display_order"].label, "Sort order")
+        self.assertEqual(form.fields["display_order"].min_value, 0)
+        self.assertEqual(form.fields["display_order"].max_value, 999)
+        self.assertContains(response, "Lower numbers appear first")
 
     def test_category_ordering_ties_break_on_name(self):
         self.main.display_order = 1
@@ -337,17 +351,38 @@ class MenuTests(TableCraftTestCase):
         self.assertNotContains(response, "Fries")
         self.assertTrue(MenuItem.objects.filter(pk=item.pk, is_active=True).exists())
 
-    def test_archived_category_not_offered_in_item_form(self):
+    def test_archived_category_still_selectable_for_its_own_item(self):
+        """Archiving a category must not make its existing items uneditable."""
         self.login()
         self.snacks.is_active = False
         self.snacks.save(update_fields=["is_active"])
-        response = self.client.get(reverse("pos:manage_menu"))
-        # a form would not offer it; assert via the edit form for an item in it
         item = MenuItem.objects.create(category=self.snacks, item_name="Fries", price=Decimal("75.00"))
         edit = self.client.get(reverse("pos:menu_item_edit", args=[item.pk]))
-        html = edit.content.decode()
-        self.assertIn('value=""', html)
-        self.assertNotIn(f'value="{self.snacks.pk}" selected', html)
+        self.assertContains(edit, f'value="{self.snacks.pk}" selected')
+
+    def test_other_archived_categories_not_offered(self):
+        self.login()
+        for category in (self.snacks, self.milk_tea):
+            category.is_active = False
+            category.save(update_fields=["is_active"])
+        item = MenuItem.objects.create(category=self.snacks, item_name="Fries", price=Decimal("75.00"))
+        html = self.client.get(reverse("pos:menu_item_edit", args=[item.pk])).content.decode()
+        self.assertNotIn(f'value="{self.milk_tea.pk}"', html)
+
+    def test_edit_item_in_archived_category_saves(self):
+        self.login()
+        self.snacks.is_active = False
+        self.snacks.save(update_fields=["is_active"])
+        item = MenuItem.objects.create(category=self.snacks, item_name="Fries", price=Decimal("75.00"))
+        response = self.client.post(
+            reverse("pos:menu_item_edit", args=[item.pk]),
+            {"category": self.snacks.pk, "item_name": "Fries Large", "description": "",
+             "price": "85.00", "image_url": "", "is_available": "on", "is_active": "on"},
+        )
+        self.assertEqual(response.status_code, 302)
+        item.refresh_from_db()
+        self.assertEqual(item.item_name, "Fries Large")
+        self.assertEqual(item.category_id, self.snacks.pk)
 
     # --- items --------------------------------------------------------------
     def test_create_item(self):
@@ -468,15 +503,16 @@ class MenuTests(TableCraftTestCase):
         )
         self.assertEqual(MenuItem.objects.filter(item_name="Fried Chicken").count(), 2)
 
-    def test_duplicate_item_case_insensitive_known_gap(self):
-        """Documents current behaviour: 'fried chicken' can duplicate 'Fried Chicken' (step 4 fixes)."""
+    def test_duplicate_item_case_insensitive_rejected(self):
         self.login()
+        before = MenuItem.objects.count()
         self.client.post(
             reverse("pos:manage_menu"),
             {"action": "create_item", "item-category": self.main.pk, "item-item_name": "fried chicken",
              "item-price": "1.00", "item-is_available": "on", "item-is_active": "on"},
         )
-        self.assertEqual(MenuItem.objects.filter(item_name__iexact="Fried Chicken").count(), 2)
+        self.assertEqual(MenuItem.objects.count(), before)
+        self.assertEqual(MenuItem.objects.filter(item_name__iexact="Fried Chicken").count(), 1)
 
     def test_image_url_rejects_bad_scheme_and_garbage(self):
         self.login()
@@ -489,19 +525,25 @@ class MenuTests(TableCraftTestCase):
             )
         self.assertEqual(MenuItem.objects.count(), before)
 
-    def test_image_url_accepts_ftp_scheme_known_gap(self):
-        """Documents current behaviour: URLValidator allows ftp:// (nothing renders it; step 4 restricts)."""
+    def test_image_url_rejects_ftp_scheme(self):
+        """Only http(s) links are accepted; ftp:// and file:// are rejected by the form."""
         self.login()
-        self.client.post(
-            reverse("pos:manage_menu"),
-            {"action": "create_item", "item-category": self.main.pk, "item-item_name": "QA",
-             "item-price": "1.00", "item-image_url": "ftp://example.com/x.png",
-             "item-is_available": "on", "item-is_active": "on"},
-        )
-        self.assertTrue(MenuItem.objects.filter(item_name="QA").exists())
+        before = MenuItem.objects.count()
+        for url in ("ftp://example.com/x.png", "file:///C:/x.png"):
+            self.client.post(
+                reverse("pos:manage_menu"),
+                {"action": "create_item", "item-category": self.main.pk, "item-item_name": "QA",
+                 "item-price": "1.00", "item-image_url": url,
+                 "item-is_available": "on", "item-is_active": "on"},
+            )
+        self.assertEqual(MenuItem.objects.count(), before)
 
-    def test_image_url_stored_but_not_rendered_known_gap(self):
-        """Documents ISS-06: image_url is validated but no template renders it."""
+    def test_image_url_not_rendered_on_customer_menu_iss06(self):
+        """ISS-06 stays open: the field is stored but no template renders it.
+
+        Rendering it is a PD2 feature gap, not PD3 hardening, so this test keeps
+        documenting the current behaviour until PD4 picks ISS-06 up.
+        """
         MenuItem.objects.create(
             category=self.main, item_name="WithImage", price=Decimal("10.00"),
             image_url="https://example.com/x.png",
@@ -553,13 +595,12 @@ class MenuTests(TableCraftTestCase):
             404,
         )
 
-    def test_non_numeric_item_and_category_ids_500_known_gap(self):
-        """Documents current behaviour: get_object_or_404(pk='abc') raises ValueError (step 4 -> 400)."""
+    def test_non_numeric_item_and_category_ids_400(self):
         self.login()
-        self.client.raise_request_exception = False
-        for action, field in (("toggle_item_active", "item_id"), ("toggle_category", "category_id")):
+        for action, field in (("toggle_item_active", "item_id"), ("toggle_category", "category_id"),
+                              ("toggle_item_available", "item_id")):
             response = self.client.post(reverse("pos:manage_menu"), {"action": action, field: "abc"})
-            self.assertEqual(response.status_code, 500, action)
+            self.assertEqual(response.status_code, 400, action)
 
     def test_unknown_action_does_nothing(self):
         self.login()
@@ -632,16 +673,15 @@ class MenuTests(TableCraftTestCase):
         response = self.client.get(reverse("pos:manage_menu"))
         self.assertEqual(response.context["sold_out_count"], 1)
 
-    def test_stats_count_archived_known_gap(self):
-        """Documents current behaviour: archived items inflate counts (PD3 step 4 filters is_active)."""
+    def test_stats_exclude_archived_items(self):
         self.item.is_active = False
         self.item.save(update_fields=["is_active"])
         self.item.is_available = False
         self.item.save(update_fields=["is_available"])
         self.login()
         response = self.client.get(reverse("pos:manage_menu"))
-        self.assertEqual(response.context["item_count"], 1)
-        self.assertEqual(response.context["sold_out_count"], 1)
+        self.assertEqual(response.context["item_count"], 0)
+        self.assertEqual(response.context["sold_out_count"], 0)
 
     # --- ordering of categories/items on customer menu ----------------------
     def test_customer_menu_hides_inactive_items_and_categories(self):
@@ -825,22 +865,22 @@ class OrderingApiTests(TableCraftTestCase):
         self.assertEqual(response.status_code, 400)
         self.assertFalse(response.json()["ok"])
 
-    def test_non_object_payload_500_known_gap(self):
-        """Documents current behaviour: a JSON array/string body raises AttributeError (step 4 -> 400)."""
-        self.client.raise_request_exception = False
-        for raw in ("[]", '"x"', "1", "null"):
+    def test_non_object_payload_400(self):
+        """A JSON array, string, number or null is not an order; reject before any write."""
+        for raw in ("[]", '"x"', "1", "null", "true"):
             response = self.submit(None, raw=raw)
-            self.assertEqual(response.status_code, 500, raw)
+            self.assertEqual(response.status_code, 400, raw)
+            self.assertFalse(response.json()["ok"], raw)
+        self.assertEqual(Order.objects.count(), 0)
 
     def test_missing_items_400(self):
         self.assertEqual(self.submit({}).status_code, 400)
 
-    def test_non_dict_item_entries_500_known_gap(self):
-        """Documents current behaviour: entry.get() on a non-dict raises AttributeError (step 4 -> 400)."""
-        self.client.raise_request_exception = False
-        for entry in ("x", 1, [], None):
+    def test_non_dict_item_entries_400(self):
+        for entry in ("x", 1, [], None, True):
             response = self.submit({"items": [entry]})
-            self.assertEqual(response.status_code, 500, entry)
+            self.assertEqual(response.status_code, 400, entry)
+        self.assertEqual(Order.objects.count(), 0)
 
     def test_empty_items_400(self):
         self.assertEqual(self.submit({"items": []}).status_code, 400)
@@ -853,19 +893,23 @@ class OrderingApiTests(TableCraftTestCase):
         self.assertEqual(self.submit({"items": items}).status_code, 400)
 
     def test_item_id_not_integer_400(self):
-        for bad in ("abc", None, "", {}, []):
+        for bad in ("abc", None, "", {}, [], 1.9, True):
             self.assertEqual(self.submit({"items": [{"item_id": bad, "quantity": 1}]}).status_code, 400, bad)
 
     def test_quantity_not_integer_400(self):
         for bad in ("abc", None, "", {}, []):
             self.assertEqual(self.submit({"items": [{"item_id": self.item.pk, "quantity": bad}]}).status_code, 400, bad)
 
-    def test_float_quantity_is_truncated_known_gap(self):
-        """Documents current behaviour: int(1.9) == 1, so a float quantity is silently truncated."""
+    def test_float_quantity_rejected(self):
+        """int(1.9) silently became 1; quantities must be whole numbers now."""
         response = self.submit({"items": [{"item_id": self.item.pk, "quantity": 1.9}]})
-        self.assertEqual(response.status_code, 200)
-        order = Order.objects.get(order_number=response.json()["order_number"])
-        self.assertEqual(order.items.first().quantity, 1)
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(Order.objects.count(), 0)
+
+    def test_non_string_note_400(self):
+        response = self.submit({"items": [{"item_id": self.item.pk, "quantity": 1, "note": {"x": 1}}]})
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(Order.objects.count(), 0)
 
     def test_quantity_bounds(self):
         self.assertEqual(self.submit({"items": [{"item_id": self.item.pk, "quantity": 0}]}).status_code, 400)
@@ -1061,12 +1105,9 @@ class ErrorPageTests(TableCraftTestCase):
         self.assertEqual(urls.handler404, "django.views.defaults.page_not_found")
         self.assertEqual(urls.handler500, "django.views.defaults.server_error")
 
-    def test_403_anonymous_csrf_failure_shows_blank_panel_known_gap(self):
-        """Documents a gap: 403.html fills only the signed-in block.
-
-        An anonymous CSRF failure (e.g. a customer whose page sat open past the
-        session) therefore renders no message at all. Step 4 mirrors the 404/500 fix.
-        """
+    def test_403_anonymous_csrf_failure_shows_message(self):
+        """An anonymous CSRF failure (a customer whose page sat open past the session)
+        renders the same branded panel as a signed-in permission denial."""
         from django.test import Client
 
         client = Client(enforce_csrf_checks=True)
@@ -1076,4 +1117,10 @@ class ErrorPageTests(TableCraftTestCase):
             content_type="application/json",
         )
         self.assertEqual(response.status_code, 403)
-        self.assertNotContains(response, "You do not have access", status_code=403)
+        self.assertContains(response, "You do not have access", status_code=403)
+
+    def test_403_signed_in_permission_denied_shows_message(self):
+        self.login("cashier")
+        response = self.client.get(reverse("pos:manage_tables"))
+        self.assertEqual(response.status_code, 403)
+        self.assertContains(response, "You do not have access", status_code=403)

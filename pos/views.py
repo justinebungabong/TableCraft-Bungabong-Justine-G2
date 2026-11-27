@@ -1,7 +1,9 @@
 import json
+import re
 from decimal import Decimal
 from django.db import transaction
-from django.http import JsonResponse
+from django.db.models import Prefetch
+from django.http import HttpResponseBadRequest, JsonResponse
 from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
@@ -11,6 +13,22 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.shortcuts import redirect
 from .models import generate_qr_token
+
+# Table labels are printed on cards and encoded in URLs, so keep them to a
+# predictable alphabet instead of accepting any 10 characters.
+TABLE_NUMBER_PATTERN = re.compile(r"^[A-Z0-9][A-Z0-9 _-]{0,9}$")
+
+
+def parse_positive_int(raw):
+    """Return a positive int for form/JSON input, or None when it is malformed."""
+    if isinstance(raw, bool):
+        return None
+    if isinstance(raw, int):
+        return raw if raw > 0 else None
+    if isinstance(raw, str) and raw.strip().isdigit():
+        value = int(raw.strip())
+        return value if value > 0 else None
+    return None
 
 
 def expire_overdue_orders(queryset=None):
@@ -31,15 +49,19 @@ def customer_menu_view(request, qr_token):
     table = get_object_or_404(DiningTable, qr_token=qr_token, is_active=True)
     categories = (
         MenuCategory.objects.filter(is_active=True)
-        .prefetch_related("items")
+        .prefetch_related(
+            Prefetch(
+                "items",
+                queryset=MenuItem.objects.filter(is_active=True),
+                to_attr="active_items",
+            )
+        )
         .order_by("display_order", "category_name")
     )
 
-    menu_sections = []
-    for cat in categories:
-        active_items = [item for item in cat.items.all() if item.is_active]
-        if active_items:
-            menu_sections.append({"category": cat, "items": active_items})
+    menu_sections = [
+        {"category": cat, "items": cat.active_items} for cat in categories if cat.active_items
+    ]
 
     return render(
         request,
@@ -76,6 +98,12 @@ def api_order_submit(request, qr_token):
     except (ValueError, UnicodeDecodeError):
         return JsonResponse({"ok": False, "error": "Invalid request payload."}, status=400)
 
+    if not isinstance(payload, dict):
+        return JsonResponse(
+            {"ok": False, "error": "Request body must be a JSON object."},
+            status=400,
+        )
+
     raw_lines = payload.get("items", [])
     if not isinstance(raw_lines, list) or not (1 <= len(raw_lines) <= 20):
         return JsonResponse(
@@ -85,13 +113,21 @@ def api_order_submit(request, qr_token):
 
     merged_lines = {}
     for entry in raw_lines:
-        try:
-            item_id = int(entry.get("item_id"))
-            qty = int(entry.get("quantity", 0))
-        except (TypeError, ValueError):
+        if not isinstance(entry, dict):
+            return JsonResponse(
+                {"ok": False, "error": "Each order line must be a JSON object."},
+                status=400,
+            )
+
+        item_id = parse_positive_int(entry.get("item_id"))
+        qty = parse_positive_int(entry.get("quantity"))
+        if item_id is None or qty is None:
             return JsonResponse({"ok": False, "error": "Invalid item or quantity."}, status=400)
 
-        note = (entry.get("note") or "").strip()
+        note = entry.get("note")
+        if note is not None and not isinstance(note, str):
+            return JsonResponse({"ok": False, "error": "Item notes must be text."}, status=400)
+        note = (note or "").strip()
         if len(note) > 140:
             return JsonResponse(
                 {"ok": False, "error": "Item notes must be 140 characters or fewer."},
@@ -240,22 +276,30 @@ def manage_tables_view(request):
             table_number = (request.POST.get("table_number") or "").strip().upper()
             if not table_number or len(table_number) > 10:
                 messages.error(request, "Table number must be 1 to 10 characters (e.g., T-01).")
+            elif not TABLE_NUMBER_PATTERN.match(table_number):
+                messages.error(
+                    request,
+                    "Table number may only contain letters, numbers, spaces, hyphens and underscores.",
+                )
             elif DiningTable.objects.filter(table_number__iexact=table_number).exists():
                 messages.error(request, f"Table {table_number} already exists.")
             else:
                 DiningTable.objects.create(table_number=table_number)
                 messages.success(request, f"Added table {table_number} with a new QR token.")
-        elif action == "toggle":
-            table = get_object_or_404(DiningTable, pk=request.POST.get("table_id"))
-            table.is_active = not table.is_active
-            table.save(update_fields=["is_active"])
-            state = "activated" if table.is_active else "deactivated"
-            messages.success(request, f"Table {table.table_number} {state}.")
-        elif action == "regenerate":
-            table = get_object_or_404(DiningTable, pk=request.POST.get("table_id"))
-            table.qr_token = generate_qr_token()
-            table.save(update_fields=["qr_token"])
-            messages.warning(request, f"Regenerated QR token for {table.table_number}. Old QR codes are now invalid.")
+        elif action in {"toggle", "regenerate"}:
+            table_id = parse_positive_int(request.POST.get("table_id"))
+            if table_id is None:
+                return HttpResponseBadRequest("Table id must be a positive integer.")
+            table = get_object_or_404(DiningTable, pk=table_id)
+            if action == "toggle":
+                table.is_active = not table.is_active
+                table.save(update_fields=["is_active"])
+                state = "activated" if table.is_active else "deactivated"
+                messages.success(request, f"Table {table.table_number} {state}.")
+            else:
+                table.qr_token = generate_qr_token()
+                table.save(update_fields=["qr_token"])
+                messages.warning(request, f"Regenerated QR token for {table.table_number}. Old QR codes are now invalid.")
         return redirect("pos:manage_tables")
 
     tables = DiningTable.objects.all().order_by("table_number")

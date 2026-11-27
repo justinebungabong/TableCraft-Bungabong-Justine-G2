@@ -1,10 +1,12 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
+from django.http import HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, redirect, render
 
 from .forms import MenuCategoryForm, MenuItemForm
 from .models import MenuCategory, MenuItem
+from .views import parse_positive_int
 
 
 def _require_menu_manager(user):
@@ -41,7 +43,10 @@ def manage_menu_view(request):
             messages.error(request, "The menu item could not be saved. Check the highlighted fields.")
 
         elif action == "toggle_category":
-            category = get_object_or_404(MenuCategory, pk=request.POST.get("category_id"))
+            category_id = parse_positive_int(request.POST.get("category_id"))
+            if category_id is None:
+                return HttpResponseBadRequest("Category id must be a positive integer.")
+            category = get_object_or_404(MenuCategory, pk=category_id)
             category.is_active = not category.is_active
             category.save(update_fields=["is_active"])
             state = "archived" if not category.is_active else "restored"
@@ -49,7 +54,10 @@ def manage_menu_view(request):
             return redirect("pos:manage_menu")
 
         elif action in {"toggle_item_available", "toggle_item_active"}:
-            item = get_object_or_404(MenuItem, pk=request.POST.get("item_id"))
+            item_id = parse_positive_int(request.POST.get("item_id"))
+            if item_id is None:
+                return HttpResponseBadRequest("Item id must be a positive integer.")
+            item = get_object_or_404(MenuItem, pk=item_id)
             if action == "toggle_item_available":
                 item.is_available = not item.is_available
                 item.save(update_fields=["is_available", "updated_at"])
@@ -72,8 +80,10 @@ def manage_menu_view(request):
             "categories": categories,
             "category_form": category_form,
             "item_form": item_form,
-            "item_count": MenuItem.objects.count(),
-            "sold_out_count": MenuItem.objects.filter(is_available=False).count(),
+            "item_count": MenuItem.objects.filter(is_active=True).count(),
+            "sold_out_count": MenuItem.objects.filter(
+                is_active=True, is_available=False
+            ).count(),
         },
     )
 

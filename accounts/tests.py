@@ -3,6 +3,7 @@
 Runs on in-memory SQLite, never on the real database (see tablecraft.settings).
 """
 
+import os
 import shutil
 import tempfile
 from io import BytesIO
@@ -37,6 +38,15 @@ def png_bytes(size=(10, 10), color=(20, 40, 60)):
 
     buffer = BytesIO()
     Image.new("RGB", size, color).save(buffer, format="PNG")
+    return buffer.getvalue()
+
+
+def noisy_png_bytes(size=(1000, 1000)):
+    """A valid PNG above the 2 MB cap (solid colours compress far too well)."""
+    from PIL import Image
+
+    buffer = BytesIO()
+    Image.frombytes("RGB", size, os.urandom(size[0] * size[1] * 3)).save(buffer, format="PNG")
     return buffer.getvalue()
 
 
@@ -107,11 +117,39 @@ class AuthTests(TestCase):
     def test_dashboard_requires_login(self):
         self.assertEqual(self.client.get(reverse("dashboard:index")).status_code, 302)
 
-    def test_password_change_route_absent_known_gap(self):
-        """Documents current behaviour: no self-service password change/reset URL exists."""
+    def test_password_change_page_requires_login(self):
+        response = self.client.get(reverse("accounts:password_change"))
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(response.url.startswith(LOGIN))
+
+    def test_password_change_page_renders(self):
         self.client.login(username="owner", password="Tablecraft#2026")
-        for path in ("/accounts/password-change/", "/accounts/password_change/", "/accounts/password-reset/"):
-            self.assertEqual(self.client.get(path).status_code, 404, path)
+        response = self.client.get(reverse("accounts:password_change"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Current password")
+
+    def test_password_change_updates_password(self):
+        self.client.login(username="owner", password="Tablecraft#2026")
+        response = self.client.post(reverse("accounts:password_change"), {
+            "old_password": "Tablecraft#2026",
+            "new_password1": "Tablecraft#2027",
+            "new_password2": "Tablecraft#2027",
+        })
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, reverse("accounts:password_change_done"))
+        self.owner.refresh_from_db()
+        self.assertTrue(self.owner.check_password("Tablecraft#2027"))
+
+    def test_password_change_rejects_wrong_current_password(self):
+        self.client.login(username="owner", password="Tablecraft#2026")
+        response = self.client.post(reverse("accounts:password_change"), {
+            "old_password": "wrong",
+            "new_password1": "Tablecraft#2027",
+            "new_password2": "Tablecraft#2027",
+        })
+        self.assertEqual(response.status_code, 200)
+        self.owner.refresh_from_db()
+        self.assertTrue(self.owner.check_password("Tablecraft#2026"))
 
 
 class RoleTests(TestCase):
@@ -153,13 +191,13 @@ class RoleTests(TestCase):
         self.client.login(username="manager", password="Tablecraft#2026")
         self.assertNotContains(self.client.get(reverse("dashboard:index")), "Add staff member")
 
-    def test_dashboard_counts_include_inactive_known_gap(self):
-        """Documents current behaviour: the shift summary counts deactivated accounts (step 4 filters)."""
+    def test_dashboard_counts_exclude_inactive(self):
         make_user("gone", is_active=False)
         self.client.login(username="owner", password="Tablecraft#2026")
         response = self.client.get(reverse("dashboard:index"))
-        self.assertEqual(response.context["total_staff"], 5)
-        self.assertEqual(response.context["cashier_count"], 2)
+        self.assertEqual(response.context["total_staff"], 4)
+        self.assertEqual(response.context["cashier_count"], 1)
+        self.assertContains(response, "gone")  # still listed so the Owner can reactivate
 
 
 class SignupTests(TestCase):
@@ -266,11 +304,12 @@ class SignupTests(TestCase):
         self.client.post(reverse("accounts:signup"), self.payload(contact_number=""))
         self.assertTrue(CustomUser.objects.filter(username="newstaff").exists())
 
-    def test_contact_number_format_unvalidated_known_gap(self):
-        """Documents current behaviour: contact_number accepts arbitrary text (step 4 adds a regex)."""
+    def test_contact_number_format_validated(self):
         self.client.login(username="owner", password="Tablecraft#2026")
-        self.client.post(reverse("accounts:signup"), self.payload(contact_number="call me maybe"))
-        self.assertTrue(CustomUser.objects.filter(username="newstaff", contact_number="call me maybe").exists())
+        response = self.client.post(reverse("accounts:signup"), self.payload(contact_number="call me maybe"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "valid contact number")
+        self.assertFalse(CustomUser.objects.filter(username="newstaff").exists())
 
     def test_contact_number_max_length(self):
         self.client.login(username="owner", password="Tablecraft#2026")
@@ -474,16 +513,18 @@ class ProfileTests(TestCase):
         self.cashier.refresh_from_db()
         self.assertFalse(self.cashier.profile_photo)
 
-    def test_photo_size_cap_absent_known_gap(self):
-        """Documents ISS-01 follow-up: no upload size/dimension limit (step 4 adds 2 MB cap)."""
+    def test_photo_size_cap_enforced(self):
         self.login("cashier")
-        upload = SimpleUploadedFile("big.png", png_bytes(size=(600, 600)), content_type="image/png")
-        self.client.post(reverse("accounts:profile"), {
+        upload = SimpleUploadedFile("big.png", noisy_png_bytes(), content_type="image/png")
+        self.assertGreater(upload.size, 2 * 1024 * 1024)
+        response = self.client.post(reverse("accounts:profile"), {
             "first_name": "Cash", "last_name": "Ier", "email": "cashier@example.com",
             "contact_number": "", "profile_photo": upload,
         })
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "2 MB or smaller")
         self.cashier.refresh_from_db()
-        self.assertTrue(self.cashier.profile_photo)
+        self.assertFalse(self.cashier.profile_photo)
 
     def test_has_profile_photo_false_when_file_missing(self):
         self.cashier.profile_photo = "profiles/does-not-exist.png"

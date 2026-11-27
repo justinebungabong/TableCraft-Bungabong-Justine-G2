@@ -32,8 +32,9 @@
             </div>
             <div class="row g-2 align-items-end">
               <div class="col-5">
-                <label for="{{ category_form.display_order.id_for_label }}" class="form-label small fw-semibold">Order</label>
+                <label for="{{ category_form.display_order.id_for_label }}" class="form-label small fw-semibold">Sort order</label>
                 {{ category_form.display_order }}
+                <div class="form-text small">{{ category_form.display_order.help_text }}</div>
                 {% for error in category_form.display_order.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
               </div>
               <div class="col-7">

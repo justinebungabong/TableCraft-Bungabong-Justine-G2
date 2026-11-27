@@ -1,17 +1,15 @@
 {% extends "base.html" %}
 {% block title %}Access denied | TableCraft{% endblock %}
 
+{% comment %}
+base.html renders one of two blocks depending on whether a user is signed in.
+A 403 is also raised for anonymous CSRF failures (a customer whose page sat open
+past the session), so both blocks must carry the message.
+{% endcomment %}
 {% block content %}
-<div class="container-fluid py-5" style="max-width: 720px;">
-  <div class="card">
-    <div class="card-body p-4 p-md-5">
-      <p class="text-uppercase small fw-bold mb-2" style="letter-spacing: .12em; color: #b4562a;">403 Forbidden</p>
-      <h1 class="h4 fw-bold mb-2">You do not have access to this page</h1>
-      <p class="mb-4" style="color: var(--muted);">
-        {{ exception|default:"Your role is not allowed to open this screen." }}
-      </p>
-      <a href="{% url 'dashboard:index' %}" class="btn btn-dark btn-sm">Back to Operations</a>
-    </div>
-  </div>
-</div>
+  {% include "partials/error_panel.html" with code="403 Forbidden" heading="You do not have access to this page" message="Your role is not allowed to open this screen. If you believe this is a mistake, ask the Owner to review your role." action="Back to Operations" %}
+{% endblock %}
+
+{% block unauthenticated_content %}
+  {% include "partials/error_panel.html" with code="403 Forbidden" heading="You do not have access to this page" message="Your session may have expired, or this action needs a fresh sign-in. Reload the page and try again." action="Back to sign in" %}
 {% endblock %}

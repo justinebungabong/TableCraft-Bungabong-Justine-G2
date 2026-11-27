@@ -1,0 +1,6 @@
+{% extends "403.html" %}
+{% comment %}
+Django's CSRF failure view renders "403_csrf.html" rather than "403.html".
+Extending the branded 403 keeps one source of truth for the panel, including
+the anonymous block that a customer sees when their page outlives the session.
+{% endcomment %}
