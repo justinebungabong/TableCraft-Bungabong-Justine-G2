@@ -97,6 +97,11 @@ LOGOUT_REDIRECT_URL = "accounts:login"
 # Order lifecycle settings
 ORDER_EXPIRY_MINUTES = 15
 
+# ISS-03: the customer ordering lifecycle (payment gate, KDS, status transitions)
+# is a PD4 feature. Keep the workflow switched off until then so a reviewer
+# cannot create an order that nobody can close.
+ORDERING_ENABLED = os.getenv("ORDERING_ENABLED", "False") == "True"
+
 # Uploaded media is served by Django only in DEBUG (see tablecraft/urls.py).
 # In production, point MEDIA_URL at object storage or the web server.
 

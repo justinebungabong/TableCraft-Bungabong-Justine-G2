@@ -564,6 +564,7 @@ class MenuTests(TableCraftTestCase):
         self.item.refresh_from_db()
         self.assertTrue(self.item.is_available)
 
+    @override_settings(ORDERING_ENABLED=True)
     def test_sold_out_item_still_shown_but_not_orderable(self):
         self.item.is_available = False
         self.item.save(update_fields=["is_available"])
@@ -799,6 +800,7 @@ class CustomerMenuTests(TableCraftTestCase):
         self.assertGreaterEqual(len(order.public_token), 16)
 
 
+@override_settings(ORDERING_ENABLED=True)
 class OrderingApiTests(TableCraftTestCase):
     def setUp(self):
         self.url = reverse("pos:api_order_submit", args=[self.table.qr_token])
@@ -1325,3 +1327,98 @@ class DestructiveActionConfirmationTests(TableCraftTestCase):
         self.assertEqual(response.status_code, 200)
         self.table.refresh_from_db()
         self.assertFalse(self.table.is_active)
+
+
+@override_settings(ORDERING_ENABLED=False)
+class OrderingSafetyTests(TableCraftTestCase):
+    """ISS-03: the half-built lifecycle fails closed, but menu browsing stays live."""
+
+    def submit(self, raw=None):
+        return self.client.post(
+            reverse("pos:api_order_submit", args=[self.table.qr_token]),
+            data=raw if raw is not None else json.dumps(
+                {"items": [{"item_id": self.item.pk, "quantity": 1}]}
+            ),
+            content_type="application/json",
+        )
+
+    def test_submit_returns_503_with_json_error(self):
+        response = self.submit()
+        self.assertEqual(response.status_code, 503)
+        self.assertFalse(response.json()["ok"])
+        self.assertEqual(response.json()["error"], "Ordering is not available in this build.")
+
+    def test_submit_writes_no_rows(self):
+        before_orders = Order.objects.count()
+        before_items = OrderItem.objects.count()
+        self.submit()
+        self.assertEqual(Order.objects.count(), before_orders)
+        self.assertEqual(OrderItem.objects.count(), before_items)
+
+    def test_guard_runs_before_payload_parsing(self):
+        """Even a malformed body gets 503: nothing about the request is trusted."""
+        self.assertEqual(self.submit(raw="{not json").status_code, 503)
+
+    def test_guard_runs_before_token_lookup(self):
+        response = self.client.post(
+            reverse("pos:api_order_submit", args=["unknown-token"]),
+            data=json.dumps({"items": [{"item_id": self.item.pk, "quantity": 1}]}),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 503)
+
+    def test_customer_menu_still_renders_categories_and_items(self):
+        response = self.client.get(reverse("pos:customer_menu", args=[self.table.qr_token]))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Main")
+        self.assertContains(response, "Fried Chicken")
+        self.assertContains(response, "Ordering opens in the next increment")
+
+    def test_customer_menu_disables_submit_control(self):
+        response = self.client.get(reverse("pos:customer_menu", args=[self.table.qr_token]))
+        html = response.content.decode()
+        self.assertIn("const orderingEnabled = false;", html)
+        self.assertIn("Ordering unavailable", html)
+        self.assertIn("disabled", html)
+        self.assertIn("!orderingEnabled || count === 0", html)
+
+    @override_settings(ORDERING_ENABLED=True)
+    def test_customer_menu_enables_submit_when_flag_on(self):
+        response = self.client.get(reverse("pos:customer_menu", args=[self.table.qr_token]))
+        html = response.content.decode()
+        self.assertIn("const orderingEnabled = true;", html)
+        self.assertNotIn("Ordering opens in the next increment", html)
+        self.assertIn("Place Order", html)
+
+    @override_settings(ORDERING_ENABLED=True)
+    def test_submit_works_when_flag_on(self):
+        response = self.submit()
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()["ok"])
+
+    def test_order_status_endpoint_still_readable(self):
+        order = Order.objects.create(table=self.table)
+        response = self.client.get(reverse("pos:api_order_status", args=[order.public_token]))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["order_number"], order.order_number)
+
+    def test_order_page_still_readable(self):
+        order = Order.objects.create(table=self.table)
+        response = self.client.get(reverse("pos:customer_order", args=[order.public_token]))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, order.order_number)
+
+    def test_unknown_tokens_still_404_on_read_endpoints(self):
+        self.assertEqual(
+            self.client.get(reverse("pos:api_order_status", args=["nope"])).status_code, 404
+        )
+        self.assertEqual(
+            self.client.get(reverse("pos:customer_order", args=["nope"])).status_code, 404
+        )
+
+    def test_menu_availability_endpoint_still_live(self):
+        response = self.client.get(
+            reverse("pos:api_menu_availability", args=[self.table.qr_token])
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(str(self.item.pk), response.json()["items"])

@@ -1,6 +1,7 @@
 import json
 import re
 from decimal import Decimal
+from django.conf import settings
 from django.db import transaction
 from django.db.models import Prefetch
 from django.http import HttpResponseBadRequest, JsonResponse
@@ -69,6 +70,7 @@ def customer_menu_view(request, qr_token):
         {
             "table": table,
             "menu_sections": menu_sections,
+            "ordering_enabled": getattr(settings, "ORDERING_ENABLED", False),
         },
     )
 
@@ -93,6 +95,14 @@ def api_menu_availability(request, qr_token):
 @require_POST
 def api_order_submit(request, qr_token):
     """Feature 1.3.2: Atomic order submission enforcing BR-09 through BR-15."""
+    # ISS-03: fail closed before parsing or writing anything. The menu stays
+    # browsable, but a half-built lifecycle must not accept new orders.
+    if not getattr(settings, "ORDERING_ENABLED", False):
+        return JsonResponse(
+            {"ok": False, "error": "Ordering is not available in this build."},
+            status=503,
+        )
+
     try:
         payload = json.loads(request.body.decode("utf-8"))
     except (ValueError, UnicodeDecodeError):
