@@ -3,7 +3,7 @@ from .models import DiningTable, MenuCategory, MenuItem, Order, OrderItem, gener
 
 
 def _is_admin(user):
-    return user.is_superuser or getattr(user, "role", "") == "OWNER"
+    return user.is_superuser
 
 
 def _is_manager_or_admin(user):

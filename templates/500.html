@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Something went wrong | TableCraft{% endblock %}
+
+{% comment %}
+Django renders 500.html without context processors, so `user` and `request` are
+undefined and base.html always takes its signed-out branch. Both blocks are
+filled with the same panel so the page looks the same either way, and no
+exception detail is ever shown here.
+{% endcomment %}
+{% block content %}
+  {% include "partials/error_panel.html" with code="500 Server Error" heading="Something went wrong on our side" message="The action could not be completed. If you were saving a change, it may not have been stored. Try again, and tell the Owner which screen you were on." action="Back to Operations" %}
+{% endblock %}
+
+{% block unauthenticated_content %}
+  {% include "partials/error_panel.html" with code="500 Server Error" heading="Something went wrong on our side" message="The action could not be completed. Please try again in a moment." action="Back to TableCraft" %}
+{% endblock %}
